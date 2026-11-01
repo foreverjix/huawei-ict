@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MindFlow · 智能阅读工作台</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="scene" aria-hidden="true">
+    <div class="rays">
+      <span class="ray ray--1"></span>
+      <span class="ray ray--2"></span>
+      <span class="ray ray--3"></span>
+      <span class="ray ray--4"></span>
+    </div>
+    <div class="caustics"></div>
+    <canvas id="bubbles" class="bubbles"></canvas>
+    <canvas id="water-light" aria-hidden="true"></canvas>
+    <div class="seabed">
+      <svg class="weed weed--1" viewBox="0 0 40 200" preserveAspectRatio="none"><path d="M20 200 C4 164 34 136 18 100 C4 68 30 38 20 0" /></svg>
+      <svg class="weed weed--2" viewBox="0 0 40 200" preserveAspectRatio="none"><path d="M20 200 C34 168 8 140 24 106 C38 74 12 46 22 6" /></svg>
+      <svg class="weed weed--3" viewBox="0 0 40 200" preserveAspectRatio="none"><path d="M20 200 C6 170 30 142 16 108 C4 78 26 52 18 12" /></svg>
+      <svg class="weed weed--4" viewBox="0 0 40 200" preserveAspectRatio="none"><path d="M20 200 C34 172 10 146 26 110 C40 78 14 44 24 4" /></svg>
+      <span class="rock rock--1"></span>
+      <span class="rock rock--2"></span>
+      <span class="rock rock--3"></span>
+    </div>
+  </div>
+
+  <div class="app">
+
+    <aside class="sidebar glass">
+      <div class="brand">
+        <span class="brand__mark">
+          <svg viewBox="0 0 28 28" fill="none">
+            <path d="M3 11c3-3.4 6-3.4 9 0s6 3.4 9 0" stroke="url(#brandGrad)" stroke-width="2" stroke-linecap="round" />
+            <path d="M3 18c3-3.4 6-3.4 9 0s6 3.4 9 0" stroke="url(#brandGrad)" stroke-width="2" stroke-linecap="round" opacity=".55" />
+            <defs>
+              <linearGradient id="brandGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#7ff3ff" />
+                <stop offset="1" stop-color="#00b8d4" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </span>
+        <span class="brand__name">MindFlow</span>
+      </div>
+
+      <nav class="nav">
+        <a class="nav__item is-active" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+            <path d="M4 10.6 12 4l8 6.6V20a1 1 0 0 1-1 1h-4.4v-5.6H9.4V21H5a1 1 0 0 1-1-1z" />
+          </svg>
+          <span>首页</span>
+        </a>
+        <a class="nav__item" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+            <path d="M4 6a2 2 0 0 1 2-2h4.2a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H6a2 2 0 0 1-2-2z" />
+            <path d="M20 6a2 2 0 0 0-2-2h-4.2a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2H18a2 2 0 0 0 2-2z" />
+          </svg>
+          <span>文档阅读</span>
+        </a>
+        <a class="nav__item" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="4" width="14" height="17" rx="2.4" />
+            <path d="M9 3.5h6v3H9z" />
+            <path d="M9 11.5h6M9 15.5h4" />
+          </svg>
+          <span>任务记录</span>
+        </a>
+        <a class="nav__item" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3.1" />
+            <path d="M19.4 14.6a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+          </svg>
+          <span>设置</span>
+        </a>
+      </nav>
+
+      <div class="sidebar__foot">
+        <div class="pill">
+          <span class="pill__dot"></span>
+          <span>本地运行</span>
+        </div>
+        <div class="privacy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+            <path d="M12 3.2 5.4 6v5.8c0 4.3 2.8 7.2 6.6 8.6 3.8-1.4 6.6-4.3 6.6-8.6V6z" />
+            <path d="m9.2 11.9 2 2 3.6-3.9" stroke-linecap="round" />
+          </svg>
+          <span>隐私保护中</span>
+        </div>
+      </div>
+    </aside>
+
+    <header class="topbar">
+      <button class="doc-picker" type="button">
+        <span class="doc-picker__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+            <path d="M6 3.5h7.5L19 9v11.5H6z" />
+            <path d="M13.5 3.5V9H19" />
+          </svg>
+        </span>
+        <span class="doc-picker__name">Attention-Is-All-You-Need.pdf</span>
+        <svg class="doc-picker__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m6 9.5 6 6 6-6" />
+        </svg>
+      </button>
+
+      <div class="topbar__right">
+        <div class="status-pill">
+          <span class="status-pill__dot"></span>
+          <span>运行中</span>
+        </div>
+        <div class="avatar" title="研究者">研</div>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div class="fish-stage" aria-hidden="true"></div>
+
+      <div class="hero">
+        <h1>你好，研究者 <span class="hero__wave">👋</span></h1>
+        <p>让每一次阅读，都更高效、更轻松</p>
+      </div>
+
+      <div class="interaction glass" id="interaction">
+        <span class="interaction__cam">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+            <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2l1.4-2h7.8l1.4 2h2.2A1.5 1.5 0 0 1 21 8.5v9A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
+            <circle cx="12" cy="12.5" r="3.4" />
+          </svg>
+        </span>
+        <span class="interaction__text">
+          <strong>张嘴一下，开始互动</strong>
+          <small>或使用空格键确认</small>
+        </span>
+        <span class="interaction__ripple"></span>
+      </div>
+    </main>
+
+    <aside class="panel">
+
+      <section class="card glass">
+        <header class="card__head">
+          <h3>今日状态</h3>
+          <a class="card__more" href="#">
+            更多
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9 5.5 6.5 6.5L9 18.5" />
+            </svg>
+          </a>
+        </header>
+
+        <div class="status-row">
+          <div class="ring">
+            <svg viewBox="0 0 132 132">
+              <defs>
+                <linearGradient id="ringGrad" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0" stop-color="#00e5ff" />
+                  <stop offset="1" stop-color="#00b8d4" />
+                </linearGradient>
+              </defs>
+              <circle class="ring__track" cx="66" cy="66" r="56" />
+              <circle class="ring__bar" cx="66" cy="66" r="56" />
+            </svg>
+            <div class="ring__center">
+              <strong>76<small>%</small></strong>
+              <span>专注度</span>
+            </div>
+          </div>
+
+          <div class="trend">
+            <p class="trend__label">专注度 <span class="trend__up">↑ +12%</span></p>
+            <svg class="trend__chart" viewBox="0 0 124 46" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#00e5ff" stop-opacity="0.32" />
+                  <stop offset="1" stop-color="#00e5ff" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <path class="trend__area" d="M0 36 L15 30 L31 33 L47 22 L62 26 L78 15 L94 19 L109 8 L124 12 L124 46 L0 46 Z" fill="url(#trendFill)" />
+              <path class="trend__line" d="M0 36 L15 30 L31 33 L47 22 L62 26 L78 15 L94 19 L109 8 L124 12" />
+              <circle class="trend__dot" cx="109" cy="8" r="3" />
+            </svg>
+          </div>
+        </div>
+
+        <ul class="stats">
+          <li><b>5<span>次</span></b><em>任务完成</em></li>
+          <li><b>8<span>分钟</span></b><em>放松时长</em></li>
+          <li><b>2.5<span>小时</span></b><em>累计专注</em></li>
+        </ul>
+      </section>
+
+      <section class="card glass card--task">
+        <header class="card__head">
+          <h3>当前任务</h3>
+          <span class="badge">高难度</span>
+        </header>
+        <p class="task__text">翻译下段内容，保留公式和引用</p>
+        <div class="progress"><span style="width:32%"></span></div>
+        <div class="task__foot">
+          <span>剩余：1 次</span>
+          <span>32%</span>
+        </div>
+      </section>
+
+    </aside>
+
+    <footer class="dock glass">
+      <div class="scheduler">
+        <div class="scheduler__head">
+          <span class="scheduler__title">智能调度</span>
+          <span class="scheduler__sep">·</span>
+          <span class="scheduler__sub">为你的节奏而生</span>
+        </div>
+        <svg class="wave" viewBox="0 0 340 50" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="waveArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#00e5ff" stop-opacity="0.26" />
+              <stop offset="1" stop-color="#00e5ff" stop-opacity="0" />
+            </linearGradient>
+          </defs>
+          <path class="wave__area" d="M0 37 L20 30 L40 34 L60 23 L80 29 L100 17 L120 25 L140 13 L160 22 L180 30 L200 18 L220 26 L240 15 L260 23 L280 11 L300 19 L320 15 L340 24 L340 50 L0 50 Z" fill="url(#waveArea)" />
+          <path class="wave__line wave__line--cyan" d="M0 37 L20 30 L40 34 L60 23 L80 29 L100 17 L120 25 L140 13 L160 22 L180 30 L200 18 L220 26 L240 15 L260 23 L280 11 L300 19 L320 15 L340 24" />
+          <path class="wave__line wave__line--violet" d="M0 45 L20 40 L40 44 L60 35 L80 41 L100 31 L120 38 L140 28 L160 36 L180 42 L200 33 L220 39 L240 29 L260 33 L280 24 L300 30 L320 27 L340 34" />
+          <circle class="wave__dot" cx="280" cy="11" r="3.4" />
+        </svg>
+        <div class="legend">
+          <span><i class="legend__dot legend__dot--cyan"></i>任务流</span>
+          <span><i class="legend__dot legend__dot--violet"></i>修复流</span>
+        </div>
+      </div>
+
+      <div class="mods">
+        <div class="mod">
+          <span class="mod__icon mod__icon--cyan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+              <path d="M4 12c3.2-4.2 8.6-4.2 11.8 0-3.2 4.2-8.6 4.2-11.8 0z" />
+              <path d="M15.8 12 20 8.6v6.8z" />
+            </svg>
+          </span>
+          <span class="mod__body">
+            <b>任务鱼</b>
+            <small>智能处理文档片段</small>
+          </span>
+        </div>
+
+        <div class="mod">
+          <span class="mod__icon mod__icon--violet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+              <circle cx="12" cy="12" r="2.4" />
+              <path d="M7.6 16.4a6.2 6.2 0 0 1 0-8.8" />
+              <path d="M16.4 7.6a6.2 6.2 0 0 1 0 8.8" />
+              <path d="M4.8 19.2a10.2 10.2 0 0 1 0-14.4" opacity=".5" />
+              <path d="M19.2 4.8a10.2 10.2 0 0 1 0 14.4" opacity=".5" />
+            </svg>
+          </span>
+          <span class="mod__body">
+            <b>缓冲鱼</b>
+            <small>呼吸放松 · 颈肩舒缓</small>
+          </span>
+        </div>
+
+        <div class="mod">
+          <span class="mod__icon mod__icon--mint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+              <path d="M12 3.2 5.4 6v5.8c0 4.3 2.8 7.2 6.6 8.6 3.8-1.4 6.6-4.3 6.6-8.6V6z" />
+              <path d="m9.2 11.9 2 2 3.6-3.9" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span class="mod__body">
+            <b>隐私优先</b>
+            <small>数据仅在本地</small>
+          </span>
+        </div>
+      </div>
+
+      <div class="tagline">
+        <span class="tagline__bar"></span>
+        <p>在专注与放松之间<br />找到最好的节奏</p>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="vendor/three.min.js"></script>
+  <script src="water-light.js"></script>
+  <script src="vendor/liquid-glass.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

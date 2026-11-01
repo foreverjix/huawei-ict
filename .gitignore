@@ -1,0 +1,9 @@
+.codeartsdoer/
+.tmp_lg/
+node_modules/
+*.log
+preview*.png
+shot*.png
+check.png
+.DS_Store
+Thumbs.db
