@@ -1,6 +1,9 @@
 .codeartsdoer/
+.arts/
 .tmp_lg/
 node_modules/
+target/
+data/
 *.log
 preview*.png
 shot*.png

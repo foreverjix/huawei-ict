@@ -6,7 +6,7 @@
   <title>MindFlow · 智能阅读工作台</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body data-page="home">
 
   <div class="scene" aria-hidden="true">
     <div class="rays">
@@ -49,20 +49,20 @@
       </div>
 
       <nav class="nav">
-        <a class="nav__item is-active" href="#">
+        <a class="nav__item is-active" data-view="home" href="#">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
             <path d="M4 10.6 12 4l8 6.6V20a1 1 0 0 1-1 1h-4.4v-5.6H9.4V21H5a1 1 0 0 1-1-1z" />
           </svg>
           <span>首页</span>
         </a>
-        <a class="nav__item" href="#">
+        <a class="nav__item" data-view="docs" href="#">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
             <path d="M4 6a2 2 0 0 1 2-2h4.2a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H6a2 2 0 0 1-2-2z" />
             <path d="M20 6a2 2 0 0 0-2-2h-4.2a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2H18a2 2 0 0 0 2-2z" />
           </svg>
           <span>文档阅读</span>
         </a>
-        <a class="nav__item" href="#">
+        <a class="nav__item" data-view="tasks" href="#">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <rect x="5" y="4" width="14" height="17" rx="2.4" />
             <path d="M9 3.5h6v3H9z" />
@@ -70,7 +70,15 @@
           </svg>
           <span>任务记录</span>
         </a>
-        <a class="nav__item" href="#">
+        <a class="nav__item" data-view="rules" href="#">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8.6" />
+            <path d="M9.6 9.4a2.5 2.5 0 0 1 4.8.8c0 1.6-2.4 2-2.4 3.4" />
+            <path d="M12 17.3h.01" />
+          </svg>
+          <span>玩法说明</span>
+        </a>
+        <a class="nav__item" data-view="settings" href="#">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3.1" />
             <path d="M19.4 14.6a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.56-1.1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
@@ -138,6 +146,171 @@
         </span>
         <span class="interaction__ripple"></span>
       </div>
+
+      <div class="game-aim" id="game-aim" aria-hidden="true">
+        <span class="game-aim__halo"></span>
+        <span class="game-aim__ring"></span>
+        <span class="game-aim__core"></span>
+      </div>
+
+      <div class="game-hud" id="game-hud" hidden>
+        <div class="game-hud__stats">
+          <span class="game-hud__score">已吃 <b id="hud-score">0</b></span>
+          <span class="game-hud__combo" id="hud-combo">连击 x1</span>
+        </div>
+        <div class="game-hud__task" id="hud-task">翻译下段内容 · 0/8</div>
+        <div class="game-hud__hint">
+          上下左右晃动头部 · 张嘴一次即可连续吸鱼
+        </div>
+        <button class="game-hud__exit" id="hud-exit" type="button">退出游戏</button>
+      </div>
+
+      <section class="page-view" data-page="docs">
+        <div class="page-view__inner card glass">
+          <header class="page-view__head">
+            <h2>文档阅读</h2>
+            <span class="page-view__sub">最近打开的文档</span>
+          </header>
+
+          <label class="doc-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="m16 16 4 4" />
+            </svg>
+            <input type="search" id="doc-search" placeholder="搜索文档、批注或关键词" />
+          </label>
+
+          <ul class="doc-list">
+            <li class="doc-item">
+              <span class="doc-item__icon doc-item__icon--gold">T</span>
+              <span class="doc-item__body">
+                <b>产品需求文档 v3.2</b>
+                <small>42 页 · 昨天更新</small>
+              </span>
+              <span class="doc-item__tag">进行中</span>
+            </li>
+            <li class="doc-item">
+              <span class="doc-item__icon">A</span>
+              <span class="doc-item__body">
+                <b>算法笔记本 · 第三章</b>
+                <small>18 页 · 2 天前</small>
+              </span>
+              <span class="doc-item__tag doc-item__tag--mute">已读 60%</span>
+            </li>
+            <li class="doc-item">
+              <span class="doc-item__icon doc-item__icon--violet">R</span>
+              <span class="doc-item__body">
+                <b>竞品调研汇总</b>
+                <small>27 页 · 上周</small>
+              </span>
+              <span class="doc-item__tag doc-item__tag--mute">未开始</span>
+            </li>
+            <li class="doc-item">
+              <span class="doc-item__icon doc-item__icon--mint">M</span>
+              <span class="doc-item__body">
+                <b>会议纪要 · 周一评审</b>
+                <small>6 页 · 3 天前</small>
+              </span>
+              <span class="doc-item__tag doc-item__tag--mute">已归档</span>
+            </li>
+          </ul>
+
+          <p class="page-view__note" id="doc-empty" hidden>没有匹配的文档</p>
+          <p class="page-view__note">演示数据，后续接入真实文档库与批注系统</p>
+        </div>
+      </section>
+
+      <section class="page-view" data-page="tasks">
+        <div class="page-view__inner card glass">
+          <header class="page-view__head">
+            <h2>任务记录</h2>
+            <span class="page-view__sub">专注与颈部活动</span>
+          </header>
+
+          <div class="metric-grid">
+            <div><b>3</b><span>今日完成</span></div>
+            <div><b>12</b><span>本周完成</span></div>
+            <div><b>26</b><span>颈部活动 · 分钟</span></div>
+          </div>
+
+          <ul class="log-list">
+            <li><span class="log-list__dot"></span><b>翻译下段内容</b><time>10:32</time></li>
+            <li><span class="log-list__dot log-list__dot--violet"></span><b>校对 5 条批注</b><time>09:48</time></li>
+            <li><span class="log-list__dot log-list__dot--mint"></span><b>整理会议纪要</b><time>昨天 17:20</time></li>
+            <li><span class="log-list__dot"></span><b>归档本周文档</b><time>昨天 15:06</time></li>
+          </ul>
+
+          <p class="page-view__note">完成数与活动时长会由后端的会话事件汇总生成</p>
+        </div>
+      </section>
+
+      <section class="page-view" data-page="rules">
+        <div class="page-view__inner card glass">
+          <header class="page-view__head">
+            <h2>玩法说明</h2>
+            <span class="page-view__sub">3 分钟上手</span>
+          </header>
+
+          <ol class="rules-list">
+            <li>
+              <b>开启摄像头</b>
+              <p>点击右侧「专注监测」的开始按钮，允许摄像头权限，正坐 2 秒完成姿态校准。</p>
+            </li>
+            <li>
+              <b>张嘴开局</b>
+              <p>张嘴一次（或按空格）进入沉浸模式，镜头会下潜到游戏海域，之后才开始出鱼。</p>
+            </li>
+            <li>
+              <b>晃动头部瞄准</b>
+              <p>左右、上下移动头部控制准星。鱼进入准星范围时，会出现绿色脉冲光环表示已锁定。</p>
+            </li>
+            <li>
+              <b>张嘴吸鱼</b>
+              <p>张嘴一次开启 2.2 秒吸气窗口，窗口内扫过的锁定鱼会被连续吞掉；一直张着嘴会持续延期。</p>
+            </li>
+            <li>
+              <b>推进任务</b>
+              <p>金色任务鱼推进当前任务进度，蓝色缓冲鱼只是休息。越靠画面边缘的鱼价值越高，最高 ×3。</p>
+            </li>
+            <li>
+              <b>退出</b>
+              <p>按 Esc 或点击顶部 HUD 的「退出游戏」，回到首页布局。</p>
+            </li>
+          </ol>
+
+          <p class="rules-warn">
+            健康提示：动作放慢、幅度循序渐进，不要快速甩头。有颈椎病史、眩晕史请先咨询医生，本功能仅为活动引导，不是治疗。
+          </p>
+        </div>
+      </section>
+
+      <section class="page-view" data-page="settings">
+        <div class="page-view__inner card glass">
+          <header class="page-view__head">
+            <h2>设置</h2>
+            <span class="page-view__sub">界面演示</span>
+          </header>
+
+          <div class="setting-row">
+            <span class="setting-row__body"><b>摄像头识别</b><small>端侧推理，画面不离开本机</small></span>
+            <label class="switch"><input type="checkbox" checked /><i></i></label>
+          </div>
+          <div class="setting-row">
+            <span class="setting-row__body"><b>沉浸模式</b><small>游戏开始时隐藏其他面板</small></span>
+            <label class="switch"><input type="checkbox" checked /><i></i></label>
+          </div>
+          <div class="setting-row">
+            <span class="setting-row__body"><b>音效反馈</b><small>吞噬与连击提示音（即将上线）</small></span>
+            <label class="switch"><input type="checkbox" /><i></i></label>
+          </div>
+          <div class="setting-row setting-row--range">
+            <span class="setting-row__body"><b>准星灵敏度</b><small id="sens-value">8 / 10</small></span>
+            <input type="range" id="setting-sensitivity" min="1" max="10" value="8" />
+          </div>
+
+          <p class="page-view__note">当前为界面演示，开关状态暂不写入实际配置</p>
+        </div>
+      </section>
     </main>
 
     <aside class="panel">
@@ -197,14 +370,49 @@
       <section class="card glass card--task">
         <header class="card__head">
           <h3>当前任务</h3>
-          <span class="badge">高难度</span>
+          <span class="badge" id="task-badge">进行中</span>
         </header>
-        <p class="task__text">翻译下段内容，保留公式和引用</p>
-        <div class="progress"><span style="width:32%"></span></div>
+        <p class="task__text" id="task-title">翻译下段内容，保留公式和引用</p>
+        <div class="progress"><span id="task-progress" style="width:0%"></span></div>
         <div class="task__foot">
-          <span>剩余：1 次</span>
-          <span>32%</span>
+          <span id="task-count">0 / 8 条</span>
+          <span id="task-percent">0%</span>
         </div>
+      </section>
+
+      <section class="monitor glass" id="monitor">
+        <header class="monitor__head">
+          <h3>专注监测</h3>
+          <span class="monitor__status" id="monitor-status" data-tone="idle">未开启</span>
+        </header>
+
+        <div class="monitor__stage">
+          <video id="monitor-video" class="monitor__video" playsinline muted></video>
+          <div class="monitor__placeholder" id="monitor-placeholder">摄像头未开启</div>
+        </div>
+
+        <div class="monitor__metrics">
+          <div><em>MAR</em><b id="m-mar">--</b></div>
+          <div><em>Δyaw</em><b id="m-yaw">--</b></div>
+          <div><em>Δpitch</em><b id="m-pitch">--</b></div>
+          <div><em>Δroll</em><b id="m-roll">--</b></div>
+        </div>
+
+        <div class="monitor__counters">
+          <span>哈欠 <b id="m-yawn">0</b></span>
+          <span>张嘴 <b id="m-mouth">0</b></span>
+          <span>转头 <b id="m-turn">0</b></span>
+          <span>专注 <b id="m-focus">--</b></span>
+        </div>
+
+        <ul class="monitor__log" id="monitor-log" aria-live="polite"></ul>
+
+        <div class="monitor__actions">
+          <button class="monitor__btn" id="monitor-toggle" type="button">开启摄像头</button>
+          <button class="monitor__btn monitor__btn--ghost" id="monitor-calibrate" type="button" disabled>重新校准</button>
+        </div>
+
+        <p class="monitor__hint" id="monitor-hint">画面不会离开本机，仅上报行为事件</p>
       </section>
 
     </aside>
@@ -288,7 +496,9 @@
 
   <script src="vendor/three.min.js"></script>
   <script src="water-light.js"></script>
+  <script src="js/dive.js"></script>
   <script src="vendor/liquid-glass.js"></script>
   <script src="app.js"></script>
+  <script type="module" src="js/monitor.js"></script>
 </body>
 </html>
