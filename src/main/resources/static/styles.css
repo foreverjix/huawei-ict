@@ -612,6 +612,11 @@ button {
   color: #dcefff;
 }
 
+.doc-picker__name.is-empty {
+  color: var(--text-mute);
+  font-weight: 400;
+}
+
 .doc-picker__chev {
   width: 16px;
   height: 16px;
@@ -2220,6 +2225,325 @@ body[data-mode="immersive"] .game-aim {
   color: #dff8ff;
 }
 
+/* ---- 引导 HUD：阶段、目标方向、实时角度 ---- */
+
+.game-hud__phase {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 214, 120, 0.24);
+  background: rgba(255, 190, 80, 0.08);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: #ffd98a;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-hud__guide {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.game-hud__dir {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: #ffe1a3;
+}
+
+.game-hud__angle {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.game-hud__bar {
+  width: 226px;
+  height: 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: linear-gradient(
+    90deg,
+    rgba(120, 230, 255, 0.16) 0 16.7%,
+    rgba(255, 196, 90, 0.16) 16.7% 72.2%,
+    rgba(120, 240, 200, 0.16) 72.2% 100%
+  );
+}
+
+.game-hud__bar-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(140, 245, 255, 0.9), rgba(255, 214, 120, 0.92));
+  box-shadow: 0 0 10px rgba(160, 240, 255, 0.55);
+  transition: width 0.3s linear;
+}
+
+/* ---- 出鱼方向预告：目标侧透出一道潮汐光带 ---- */
+
+.fish-cue {
+  position: absolute;
+  top: 26%;
+  width: 150px;
+  height: 48%;
+  z-index: 55;
+  pointer-events: none;
+  transform: translateX(-50%);
+  opacity: 0;
+  animation: cueBreathe 0.65s ease-out forwards;
+}
+
+.fish-cue--left {
+  left: 11%;
+}
+
+.fish-cue--right {
+  left: 89%;
+}
+
+.fish-cue--center {
+  left: 50%;
+}
+
+.fish-cue__beam {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(120, 235, 255, 0.3),
+    rgba(60, 180, 240, 0.08) 45%,
+    transparent 72%
+  );
+  filter: blur(10px);
+}
+
+.fish-cue--center .fish-cue__beam {
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(120, 255, 210, 0.24),
+    rgba(40, 170, 200, 0.06) 45%,
+    transparent 72%
+  );
+}
+
+.fish-cue__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(150, 245, 255, 0.72);
+  box-shadow: 0 0 26px rgba(120, 230, 255, 0.45);
+  animation: cueRing 0.65s ease-out forwards;
+}
+
+@keyframes cueBreathe {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.82);
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.92;
+    transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes cueRing {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+    transform: scale(1.6);
+  }
+}
+
+/* 转头幅度到位：锁定环由青色转金色 */
+.game-fish.is-locked.is-reach::after {
+  border-color: rgba(255, 214, 120, 0.88);
+  box-shadow: 0 0 32px rgba(255, 200, 90, 0.55), inset 0 0 26px rgba(255, 200, 90, 0.26);
+}
+
+.game-fish.is-reach {
+  filter: drop-shadow(0 0 30px rgba(255, 208, 110, 0.7)) brightness(1.12) saturate(1.1);
+}
+
+.game-aim.is-guarded .game-aim__ring {
+  border-color: rgba(255, 172, 96, 0.9);
+  box-shadow: 0 0 26px rgba(255, 150, 70, 0.4), inset 0 0 18px rgba(255, 150, 70, 0.18);
+}
+
+.game-aim.is-guarded .game-aim__core {
+  background: radial-gradient(circle at 38% 34%, #fff3de, rgba(255, 192, 122, 0.88) 42%, rgba(232, 122, 44, 0.62));
+  box-shadow: 0 0 18px rgba(255, 170, 90, 0.75);
+}
+
+/* ---- 组末：颈部活动度小结 ---- */
+
+.round-end {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: transparent;
+}
+
+.round-end[hidden] {
+  display: none;
+}
+
+.round-end__panel {
+  width: min(540px, 92%);
+  padding: 26px 30px 24px;
+  border-radius: 26px;
+  border: 1px solid rgba(140, 235, 255, 0.22);
+  background: linear-gradient(160deg, rgba(18, 62, 90, 0.5), rgba(8, 32, 50, 0.42));
+  box-shadow:
+    0 34px 70px -34px rgba(0, 20, 40, 0.82),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(26px) saturate(150%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%);
+  animation: floatUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  text-align: center;
+}
+
+.round-end__eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #8fd7f2;
+}
+
+.round-end__title {
+  margin: 0 0 18px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #e8f8ff;
+}
+
+.round-end__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.round-end__item {
+  padding: 14px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(140, 235, 255, 0.16);
+  background: rgba(60, 160, 220, 0.08);
+}
+
+.round-end__label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: #9fc4d8;
+}
+
+.round-end__value {
+  display: block;
+  margin: 4px 0 2px;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  color: #dff8ff;
+}
+
+.round-end__peak {
+  font-size: 11px;
+  color: #ffd98a;
+  font-variant-numeric: tabular-nums;
+}
+
+.round-end__balance {
+  margin: 16px 0 4px;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: #9fe8c6;
+}
+
+.round-end__balance.is-warn {
+  color: #ffc98a;
+}
+
+.round-end__note {
+  margin: 0 0 18px;
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+.round-end__note b {
+  color: #dff8ff;
+  font-variant-numeric: tabular-nums;
+}
+
+.round-end__rest {
+  margin: -8px 0 18px;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: #8fd7f2;
+}
+
+.round-end__actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.round-end__btn {
+  padding: 9px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.round-end__btn:hover {
+  border-color: rgba(120, 230, 255, 0.4);
+  color: #dff8ff;
+}
+
+.round-end__btn--primary {
+  border-color: rgba(120, 240, 220, 0.44);
+  background: rgba(40, 200, 180, 0.16);
+  color: #c9fff0;
+}
+
+.round-end__btn--primary:hover {
+  border-color: rgba(140, 255, 230, 0.66);
+  background: rgba(40, 200, 180, 0.24);
+  color: #eafff9;
+}
+
+@media (max-width: 560px) {
+  .round-end__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .game-hud__bar {
+    width: 180px;
+  }
+}
+
 .game-fish.is-locked {
   filter: drop-shadow(0 0 26px rgba(0, 255, 190, 0.75)) brightness(1.2) saturate(1.15);
 }
@@ -2463,6 +2787,190 @@ body:not([data-page="home"]) .stage {
   color: var(--text-dim);
 }
 
+/* ---- 上传文档与 AI 分析 ---- */
+
+.doc-list--real:empty,
+.doc-list--real[hidden] {
+  display: none;
+}
+
+.doc-item--real {
+  border-radius: 12px;
+}
+
+.doc-item.is-selected {
+  background: rgba(0, 190, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(120, 230, 255, 0.24);
+}
+
+.doc-analyze {
+  margin-top: 14px;
+  padding: 16px 18px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(120, 230, 255, 0.16);
+  background: linear-gradient(160deg, rgba(18, 62, 90, 0.3), rgba(8, 32, 50, 0.2));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.doc-analyze__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.doc-analyze__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.doc-analyze__title b {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #e6f8ff;
+}
+
+.doc-analyze__title small {
+  max-width: 460px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--text-mute);
+}
+
+.doc-analyze__state {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.doc-analyze__state[data-tone="ok"] {
+  border-color: rgba(61, 220, 151, 0.4);
+  background: rgba(61, 220, 151, 0.1);
+  color: #9fe8c6;
+}
+
+.doc-analyze__state[data-tone="warn"] {
+  border-color: rgba(255, 190, 90, 0.4);
+  background: rgba(255, 180, 80, 0.1);
+  color: #ffd9a3;
+}
+
+.doc-analyze__state[data-tone="busy"] {
+  border-color: rgba(120, 230, 255, 0.4);
+  background: rgba(120, 230, 255, 0.08);
+  color: #b6e4ff;
+}
+
+.doc-analyze__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.doc-analyze__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.doc-analyze__field span {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-mute);
+}
+
+.doc-analyze__field select,
+.setting-field input,
+.setting-field select,
+.setting-field textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 11px;
+  border: 1px solid rgba(140, 220, 255, 0.18);
+  background: rgba(10, 40, 60, 0.42);
+  color: #e6f8ff;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.doc-analyze__field select:focus,
+.setting-field input:focus,
+.setting-field select:focus,
+.setting-field textarea:focus {
+  border-color: rgba(120, 230, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(0, 180, 255, 0.12);
+}
+
+.doc-analyze__field select option,
+.setting-field select option {
+  background: #0a2032;
+  color: #e6f8ff;
+}
+
+.doc-analyze__btn,
+.setting-actions__btn {
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 240, 220, 0.34);
+  background: rgba(40, 200, 180, 0.14);
+  color: #c9fff0;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+
+.doc-analyze__btn:hover,
+.setting-actions__btn:hover {
+  border-color: rgba(140, 255, 230, 0.6);
+  background: rgba(40, 200, 180, 0.22);
+}
+
+.doc-analyze__btn:disabled,
+.setting-actions__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.doc-analyze__result {
+  margin-top: 12px;
+  max-height: 320px;
+  overflow: auto;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 230, 255, 0.14);
+  background: rgba(6, 28, 44, 0.32);
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: #d6ecf7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.doc-analyze__result[hidden] {
+  display: none;
+}
+
+.doc-analyze__hint {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--text-mute);
+}
+
 .doc-item[hidden],
 .page-view__note[hidden] {
   display: none;
@@ -2686,6 +3194,114 @@ body:not([data-page="home"]) .stage {
 .setting-row--range input[type="range"] {
   width: 100%;
   accent-color: #00d4ff;
+}
+
+/* ---- 模型服务与 Skill ---- */
+
+.setting-section {
+  margin-top: 14px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.setting-section__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.setting-section__head b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #e6f8ff;
+}
+
+.setting-section__head small {
+  display: block;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--text-mute);
+}
+
+.setting-section__state {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.setting-section__state[data-tone="ok"] {
+  border-color: rgba(61, 220, 151, 0.4);
+  background: rgba(61, 220, 151, 0.1);
+  color: #9fe8c6;
+}
+
+.setting-section__state[data-tone="warn"] {
+  border-color: rgba(255, 190, 90, 0.36);
+  background: rgba(255, 180, 80, 0.08);
+  color: #ffd9a3;
+}
+
+.setting-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.setting-field > span {
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  color: var(--text-mute);
+}
+
+.setting-field textarea {
+  min-height: 76px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.setting-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.setting-actions__btn--primary {
+  border-color: rgba(120, 240, 220, 0.5);
+  background: rgba(40, 200, 180, 0.2);
+}
+
+.setting-actions__msg {
+  font-size: 10.5px;
+  color: var(--text-mute);
+}
+
+.setting-actions__msg[data-tone="ok"] {
+  color: #9fe8c6;
+}
+
+.setting-actions__msg[data-tone="warn"] {
+  color: #ffd9a3;
+}
+
+.setting-actions__msg[data-tone="busy"] {
+  color: #b6e4ff;
+}
+
+@media (max-width: 560px) {
+  .doc-analyze__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .switch {

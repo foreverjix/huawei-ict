@@ -103,25 +103,26 @@
     </aside>
 
     <header class="topbar">
-      <button class="doc-picker" type="button">
+      <button class="doc-picker" id="doc-picker" type="button" title="点击上传文档" aria-label="上传文档">
         <span class="doc-picker__icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
             <path d="M6 3.5h7.5L19 9v11.5H6z" />
             <path d="M13.5 3.5V9H19" />
           </svg>
         </span>
-        <span class="doc-picker__name">Attention-Is-All-You-Need.pdf</span>
+        <span class="doc-picker__name is-empty" id="doc-picker-name">选择文档</span>
         <svg class="doc-picker__chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="m6 9.5 6 6 6-6" />
         </svg>
       </button>
+      <input type="file" id="doc-file-input" accept=".pdf,.txt,.md,.csv,.json" hidden />
 
       <div class="topbar__right">
         <div class="status-pill">
           <span class="status-pill__dot"></span>
           <span>运行中</span>
         </div>
-        <div class="avatar" title="研究者">研</div>
+        <div class="avatar" title="办公族">办</div>
       </div>
     </header>
 
@@ -129,7 +130,7 @@
       <div class="fish-stage" aria-hidden="true"></div>
 
       <div class="hero">
-        <h1>你好，研究者 <span class="hero__wave">👋</span></h1>
+        <h1>你好，今天也从容一点 <span class="hero__wave">👋</span></h1>
         <p>让每一次阅读，都更高效、更轻松</p>
       </div>
 
@@ -157,19 +158,55 @@
         <div class="game-hud__stats">
           <span class="game-hud__score">已吃 <b id="hud-score">0</b></span>
           <span class="game-hud__combo" id="hud-combo">连击 x1</span>
+          <span class="game-hud__phase" id="hud-phase">热身 · 0:15</span>
+        </div>
+        <div class="game-hud__guide">
+          <span class="game-hud__dir" id="hud-dir">等待下一条鱼</span>
+          <span class="game-hud__angle" id="hud-angle">当前 回正中</span>
         </div>
         <div class="game-hud__task" id="hud-task">翻译下段内容 · 0/8</div>
+        <div class="game-hud__bar">
+          <span class="game-hud__bar-fill" id="hud-bar-fill"></span>
+        </div>
         <div class="game-hud__hint">
-          上下左右晃动头部 · 张嘴一次即可连续吸鱼
+          跟着鱼的方向慢慢转头 · 到位后停一下
         </div>
         <button class="game-hud__exit" id="hud-exit" type="button">退出游戏</button>
+      </div>
+
+      <div class="round-end" id="round-end" hidden>
+        <div class="round-end__panel">
+          <p class="round-end__eyebrow">本组 90 秒完成</p>
+          <h2 class="round-end__title">颈部活动度小结</h2>
+          <div class="round-end__grid">
+            <div class="round-end__item">
+              <span class="round-end__label">向左转头</span>
+              <b class="round-end__value" id="round-left">0 次</b>
+              <span class="round-end__peak" id="round-left-peak">峰值 0°</span>
+            </div>
+            <div class="round-end__item">
+              <span class="round-end__label">向右转头</span>
+              <b class="round-end__value" id="round-right">0 次</b>
+              <span class="round-end__peak" id="round-right-peak">峰值 0°</span>
+            </div>
+          </div>
+          <p class="round-end__balance" id="round-balance">左右已配平</p>
+          <p class="round-end__note">
+            动作到位 <b id="round-standard">0</b> 次 · 漏掉 <b id="round-missed">0</b> 条
+          </p>
+          <p class="round-end__rest">建议每小时一组，组间休息 3 分钟</p>
+          <div class="round-end__actions">
+            <button class="round-end__btn round-end__btn--primary" id="round-again" type="button">再来一组</button>
+            <button class="round-end__btn" id="round-exit" type="button">回到首页</button>
+          </div>
+        </div>
       </div>
 
       <section class="page-view" data-page="docs">
         <div class="page-view__inner card glass">
           <header class="page-view__head">
             <h2>文档阅读</h2>
-            <span class="page-view__sub">最近打开的文档</span>
+            <span class="page-view__sub">你的工作文档</span>
           </header>
 
           <label class="doc-search">
@@ -177,46 +214,35 @@
               <circle cx="11" cy="11" r="6.5" />
               <path d="m16 16 4 4" />
             </svg>
-            <input type="search" id="doc-search" placeholder="搜索文档、批注或关键词" />
+            <input type="search" id="doc-search" placeholder="搜索文档或关键词" />
           </label>
 
-          <ul class="doc-list">
-            <li class="doc-item">
-              <span class="doc-item__icon doc-item__icon--gold">T</span>
-              <span class="doc-item__body">
-                <b>产品需求文档 v3.2</b>
-                <small>42 页 · 昨天更新</small>
-              </span>
-              <span class="doc-item__tag">进行中</span>
-            </li>
-            <li class="doc-item">
-              <span class="doc-item__icon">A</span>
-              <span class="doc-item__body">
-                <b>算法笔记本 · 第三章</b>
-                <small>18 页 · 2 天前</small>
-              </span>
-              <span class="doc-item__tag doc-item__tag--mute">已读 60%</span>
-            </li>
-            <li class="doc-item">
-              <span class="doc-item__icon doc-item__icon--violet">R</span>
-              <span class="doc-item__body">
-                <b>竞品调研汇总</b>
-                <small>27 页 · 上周</small>
-              </span>
-              <span class="doc-item__tag doc-item__tag--mute">未开始</span>
-            </li>
-            <li class="doc-item">
-              <span class="doc-item__icon doc-item__icon--mint">M</span>
-              <span class="doc-item__body">
-                <b>会议纪要 · 周一评审</b>
-                <small>6 页 · 3 天前</small>
-              </span>
-              <span class="doc-item__tag doc-item__tag--mute">已归档</span>
-            </li>
-          </ul>
+          <ul class="doc-list doc-list--real" id="doc-real-list"></ul>
 
-          <p class="page-view__note" id="doc-empty" hidden>没有匹配的文档</p>
-          <p class="page-view__note">演示数据，后续接入真实文档库与批注系统</p>
+          <p class="page-view__note" id="doc-empty" hidden>还没有上传文档，点击右上角「选择文档」开始</p>
+
+          <div class="doc-analyze">
+            <header class="doc-analyze__head">
+              <div class="doc-analyze__title">
+                <b>AI 文档分析</b>
+                <small id="doc-active-name">尚未选择文档</small>
+              </div>
+              <span class="doc-analyze__state" id="doc-analyze-state">待上传</span>
+            </header>
+            <div class="doc-analyze__row">
+              <label class="doc-analyze__field">
+                <span>Skill</span>
+                <select id="doc-skill"></select>
+              </label>
+              <button class="doc-analyze__btn" id="doc-analyze-btn" type="button">开始分析</button>
+            </div>
+            <div class="doc-analyze__result" id="doc-analyze-result" hidden></div>
+            <p class="doc-analyze__hint" id="doc-analyze-hint">
+              点击右上角「选择文档」上传 PDF / TXT / MD，选择 Skill 后即可分析。
+            </p>
+          </div>
+
+          <p class="page-view__note">上传的文档会保存在本机，分析由设置页配置的模型服务完成</p>
         </div>
       </section>
 
@@ -258,11 +284,15 @@
             </li>
             <li>
               <b>张嘴开局</b>
-              <p>张嘴一次（或按空格）进入沉浸模式，镜头会下潜到游戏海域，之后才开始出鱼。</p>
+              <p>张嘴一次（或按空格）进入沉浸模式，镜头会下潜到游戏海域。一组训练 90 秒，分热身、主训、放松三段。</p>
             </li>
             <li>
-              <b>晃动头部瞄准</b>
-              <p>左右、上下移动头部控制准星。鱼进入准星范围时，会出现绿色脉冲光环表示已锁定。</p>
+              <b>跟着鱼的方向转头</b>
+              <p>鱼会从需要活动的方向游来：左侧的鱼要向左转头，右侧的鱼要向右转头，中间的金色方向环是目标。蓝色鱼在画面中间，代表回正休息。</p>
+            </li>
+            <li>
+              <b>做「到位」的那一下</b>
+              <p>转头幅度达到目标角度的 85% 以上时，锁定环会变成金色，收益更高；没到位也能吃，但只拿基础分。转头过快（超过 70°/秒）会暂时失去锁定并提示「慢一点」。</p>
             </li>
             <li>
               <b>张嘴吸鱼</b>
@@ -270,7 +300,11 @@
             </li>
             <li>
               <b>推进任务</b>
-              <p>金色任务鱼推进当前任务进度，蓝色缓冲鱼只是休息。越靠画面边缘的鱼价值越高，最高 ×3。</p>
+              <p>金色任务鱼推进当前任务进度，蓝色归中鱼只是休息。越靠画面边缘的鱼基础价值越高，最高 ×3。</p>
+            </li>
+            <li>
+              <b>一组结束看小结</b>
+              <p>90 秒后给出左右转头次数、峰值角度与配平结果。某一侧做得少，下一组会优先补那一侧。</p>
             </li>
             <li>
               <b>退出</b>
@@ -279,7 +313,7 @@
           </ol>
 
           <p class="rules-warn">
-            健康提示：动作放慢、幅度循序渐进，不要快速甩头。有颈椎病史、眩晕史请先咨询医生，本功能仅为活动引导，不是治疗。
+            健康提示：动作放慢、幅度循序渐进，不要快速甩头，仰头不超过 15°。有颈椎病史、眩晕史请先咨询医生，本功能仅为活动引导，不是治疗。
           </p>
         </div>
       </section>
@@ -308,7 +342,44 @@
             <input type="range" id="setting-sensitivity" min="1" max="10" value="8" />
           </div>
 
-          <p class="page-view__note">当前为界面演示，开关状态暂不写入实际配置</p>
+          <div class="setting-section">
+            <header class="setting-section__head">
+              <div>
+                <b>模型服务与 Skill</b>
+                <small>OpenAI 兼容接口 · API Key 仅保存在本机</small>
+              </div>
+              <span class="setting-section__state" id="llm-status">未连接</span>
+            </header>
+
+            <label class="setting-field">
+              <span>API Base URL</span>
+              <input id="llm-base-url" type="url" placeholder="https://api.deepseek.com/v1" autocomplete="off" />
+            </label>
+            <label class="setting-field">
+              <span>API Key</span>
+              <input id="llm-api-key" type="password" placeholder="留空表示保留已保存的 Key" autocomplete="new-password" />
+            </label>
+            <label class="setting-field">
+              <span>模型名称</span>
+              <input id="llm-model" type="text" placeholder="deepseek-chat" autocomplete="off" />
+            </label>
+            <label class="setting-field">
+              <span>默认 Skill</span>
+              <select id="llm-skill"></select>
+            </label>
+            <label class="setting-field">
+              <span>自定义 Prompt（选择「自定义 Prompt」时生效）</span>
+              <textarea id="llm-prompt" rows="3" placeholder="例如：用三句话总结本文的创新点，并列出两个可验证的实验。"></textarea>
+            </label>
+
+            <div class="setting-actions">
+              <button class="setting-actions__btn setting-actions__btn--primary" id="llm-save" type="button">保存配置</button>
+              <button class="setting-actions__btn" id="llm-test" type="button">测试连接</button>
+              <span class="setting-actions__msg" id="llm-message"></span>
+            </div>
+          </div>
+
+          <p class="page-view__note">开关状态暂不写入实际配置；模型服务配置会真实保存在本机</p>
         </div>
       </section>
     </main>
@@ -500,5 +571,6 @@
   <script src="vendor/liquid-glass.js"></script>
   <script src="app.js"></script>
   <script type="module" src="js/monitor.js"></script>
+  <script type="module" src="js/document-ai.js"></script>
 </body>
 </html>

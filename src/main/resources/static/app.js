@@ -485,6 +485,20 @@
   const hudHintEl = document.querySelector(".game-hud__hint");
   const hudExitEl = document.getElementById("hud-exit");
   const hudTaskEl = document.getElementById("hud-task");
+  const hudDirEl = document.getElementById("hud-dir");
+  const hudAngleEl = document.getElementById("hud-angle");
+  const hudPhaseEl = document.getElementById("hud-phase");
+  const hudBarFillEl = document.getElementById("hud-bar-fill");
+  const roundEndEl = document.getElementById("round-end");
+  const roundLeftEl = document.getElementById("round-left");
+  const roundRightEl = document.getElementById("round-right");
+  const roundLeftPeakEl = document.getElementById("round-left-peak");
+  const roundRightPeakEl = document.getElementById("round-right-peak");
+  const roundBalanceEl = document.getElementById("round-balance");
+  const roundStandardEl = document.getElementById("round-standard");
+  const roundMissedEl = document.getElementById("round-missed");
+  const roundAgainEl = document.getElementById("round-again");
+  const roundExitEl = document.getElementById("round-exit");
   const taskBadgeEl = document.getElementById("task-badge");
   const taskTitleEl = document.getElementById("task-title");
   const taskProgressEl = document.getElementById("task-progress");
@@ -530,7 +544,42 @@
     keyHold: false,
     taskIndex: 0,
     taskEaten: 0,
-    completedTasks: 0
+    completedTasks: 0,
+
+    // ---- 颈椎引导训练 ----
+    roundStart: 0,
+    roundEndShown: false,
+    guideSeq: [],
+    lastGuideDir: 0,
+    mainDone: 0,
+    activeFish: null,
+    pendingGuide: null,
+    cueEl: null,
+    cueSpawnAt: 0,
+    nextSpawnAt: 0,
+    poseYaw: 0,
+    speedGuardUntil: 0,
+    lastSpeedWarnAt: 0,
+    lastGuideHudAt: 0,
+    tally: { left: 0, right: 0, leftPeak: 0, rightPeak: 0, standard: 0, missed: 0 }
+  };
+
+  /**
+   * 一组 90 秒的颈椎引导计划：
+   * 热身由浅入深、主训逐步加大幅度、放松收回来，避免一上来就甩到极限。
+   */
+  const GUIDE = {
+    roundMs: 90000,
+    cueMs: 650,
+    hoverMs: 10000,
+    spawnGapMs: 950,
+    maxYawRate: 70,
+    reachRatio: 0.85,
+    phases: [
+      { id: "warmup", label: "热身", from: 0, to: 15000, yaw: 20 },
+      { id: "main", label: "主训", from: 15000, to: 65000, yaw: 25 },
+      { id: "cool", label: "放松", from: 65000, to: 90000, yaw: 15 }
+    ]
   };
 
   function clamp(value, min, max) {
@@ -556,38 +605,85 @@
     };
   }
 
-  function createGameFish() {
-    if (!fishStage || !stageBox.w || GAME.fishes.length >= GAME.maxFish) return;
+  // ---- 引导排期：鱼的位置就是目标姿态的位置 ----
 
-    // 金色任务鱼为主，蓝色缓冲鱼穿插，保证任务推进但不会太单调
-    const type = Math.random() < 0.72 ? "task" : "rest";
+  function currentPhase(elapsed) {
+    for (const phase of GUIDE.phases) {
+      if (elapsed < phase.to) return phase;
+    }
+    return GUIDE.phases[GUIDE.phases.length - 1];
+  }
 
-    const w = Math.round(clamp(stageBox.w * (0.07 + Math.random() * 0.07), 64, 190));
+  function phaseYaw(phase) {
+    // 主训按完成条数阶梯加幅：25 → 30 → 35°
+    if (phase.id !== "main") return phase.yaw;
+    return Math.min(35, phase.yaw + Math.floor(GAME.mainDone / 2) * 5);
+  }
+
+  /**
+   * 方向队列：左右交替，中间插一条蓝色归中鱼。
+   * 左右累计次数差达到 1 条时优先补欠的那一侧，保证对称配平。
+   */
+  function nextGuideDir() {
+    if (!GAME.guideSeq.length) {
+      const rightDue = GAME.tally.left - GAME.tally.right >= 1;
+      const leftDue = GAME.tally.right - GAME.tally.left >= 1;
+      let first;
+      if (rightDue) first = 1;
+      else if (leftDue) first = -1;
+      else first = GAME.lastGuideDir === 1 ? -1 : 1;
+      GAME.guideSeq = [first, 0, -first, 0];
+    }
+    return GAME.guideSeq.shift();
+  }
+
+  function planGuide(now) {
+    const elapsed = Math.max(0, now - GAME.roundStart);
+    const phase = currentPhase(elapsed);
+    const dir = nextGuideDir();
+    const needYaw = dir === 0 ? 0 : phaseYaw(phase);
+
+    // 幅度越大，驻留点越靠边；但仍留在准星 + 磁吸可达的范围内
+    const edge = phase.id === "warmup" ? 0.27 : phase.id === "main" ? 0.21 : 0.31;
+    const jitter = Math.random() * 0.04;
+    let anchorX;
+    if (dir < 0) anchorX = stageBox.w * (edge + jitter);
+    else if (dir > 0) anchorX = stageBox.w * (1 - edge - jitter);
+    else anchorX = stageBox.w * (0.46 + Math.random() * 0.08);
+
+    return {
+      dir: dir,
+      needYaw: needYaw,
+      phase: phase.id,
+      anchorX: anchorX,
+      anchorY: stageBox.h * (0.34 + Math.random() * 0.3)
+    };
+  }
+
+  function createGameFish(guide) {
+    if (!fishStage || !stageBox.w) return;
+
+    const plan = guide || planGuide(performance.now());
+    // 只记录左右方向，中间的归中鱼不能覆盖交替依据
+    if (plan.dir !== 0) GAME.lastGuideDir = plan.dir;
+    // 左右目标鱼推进任务，中央鱼只是回正的休息鱼
+    const type = plan.dir === 0 ? "rest" : "task";
+    const sizeRatio = plan.dir === 0 ? 0.088 : 0.075;
+    const w = Math.round(clamp(stageBox.w * (sizeRatio + Math.random() * 0.02), 64, 190));
     const h = Math.round(w * 0.735);
-    const speed = 26 + Math.random() * 44;
+    const speed = 100 + Math.random() * 26;
 
-    // 随机航向：以水平为主，允许上下 ±32° 的斜向，避免鱼竖直游动
-    const heading = (Math.random() < 0.5 ? 0 : Math.PI) + (Math.random() - 0.5) * 1.12;
+    // 去左边就从左边界外游进来，去右边就从右边界外游进来
+    let heading;
+    if (plan.dir < 0) heading = (Math.random() - 0.5) * 0.24;
+    else if (plan.dir > 0) heading = Math.PI + (Math.random() - 0.5) * 0.24;
+    else heading = (Math.random() < 0.5 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.2;
+
+    const startX = Math.cos(heading) >= 0 ? -w - 70 : stageBox.w + 70;
+    const startY = plan.anchorY - h / 2 + (Math.random() - 0.5) * 84;
+
     const vx = Math.cos(heading) * speed;
     const vy = Math.sin(heading) * speed;
-
-    // 先取舞台内一个随机目标点，再从目标点反向退出生点，
-    // 这样鱼可能从上/下/斜角任何方向进入，且一定会穿过游戏区
-    const targetX = stageBox.w * (0.12 + Math.random() * 0.76);
-    const targetY = stageBox.h * (0.12 + Math.random() * 0.76);
-
-    // 从目标点朝航向的反方向走到画面边界外，确保出生点贴着边缘、不会在屏幕外跑太久
-    const backX = -Math.cos(heading);
-    const backY = -Math.sin(heading);
-    let exit = Infinity;
-    if (backX > 0.001) exit = Math.min(exit, (stageBox.w - targetX) / backX);
-    if (backX < -0.001) exit = Math.min(exit, (0 - targetX) / backX);
-    if (backY > 0.001) exit = Math.min(exit, (stageBox.h - targetY) / backY);
-    if (backY < -0.001) exit = Math.min(exit, (0 - targetY) / backY);
-    if (!isFinite(exit) || exit < 0) exit = 80;
-
-    const startX = targetX + backX * (exit + 90);
-    const startY = targetY + backY * (exit + 90);
 
     const el = document.createElement("div");
     el.className = "fish game-fish " + (type === "task" ? "fish--gold" : "fish--blue");
@@ -612,17 +708,28 @@
       h: h,
       vx: vx,
       vy: vy,
+      speed: speed,
+      dir: plan.dir,
+      needYaw: plan.needYaw,
+      phaseId: plan.phase,
+      anchorX: plan.anchorX - w / 2,
+      anchorY: plan.anchorY - h / 2,
+      mode: "enter",
+      hoverAt: 0,
+      spawnedAt: performance.now(),
       entered: false,
-      swayAmp: 6 + Math.random() * 14,
-      swayW: 0.8 + Math.random() * 1.4,
+      swayAmp: 5 + Math.random() * 10,
+      swayW: 0.7 + Math.random() * 1.1,
       phase: Math.random() * Math.PI * 2,
       framePos: Math.random() * FRAME_COUNT,
       fps: FRAME_FPS,
       ready: false,
-      eaten: false
+      eaten: false,
+      reach: false,
+      faceDir: vx >= 0 ? 1 : -1
     };
 
-    wrap.style.setProperty("--dir", fish.vx >= 0 ? "1" : "-1");
+    wrap.style.setProperty("--dir", String(fish.faceDir));
 
     let loaded = 0;
     for (let i = 1; i <= FRAME_COUNT; i++) {
@@ -646,6 +753,7 @@
     el.style.transform = "translate3d(" + fish.x + "px, " + fish.y + "px, 0)";
     fishStage.appendChild(el);
     GAME.fishes.push(fish);
+    GAME.activeFish = fish;
   }
 
   function prepareGameFrames(fish) {
@@ -668,13 +776,73 @@
     fish.el.classList.add("is-ready");
   }
 
+  /**
+   * 引导轨迹：先游向目标侧的驻留点，到达后缓慢徘徊等待用户转头，
+   * 超出停留时间才继续游走。避免鱼一闪而过、逼用户甩头去追。
+   */
+  function updateFishMotion(fish, time, dt) {
+    const step = dt / 1000;
+
+    if (fish.mode === "enter") {
+      const dx = fish.anchorX - fish.x;
+      const dy = fish.anchorY - fish.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 18) {
+        fish.mode = "hover";
+        fish.hoverAt = time;
+        fish.x = fish.anchorX;
+        fish.y = fish.anchorY;
+      } else {
+        const move = Math.min(dist, fish.speed * step);
+        fish.x += (dx / dist) * move;
+        fish.y += (dy / dist) * move;
+        setFishFacing(fish, dx);
+      }
+      return;
+    }
+
+    if (fish.mode === "hover") {
+      const t = (time - fish.hoverAt) / 1000 + fish.phase;
+      const tx = fish.anchorX + Math.cos(t * 0.9) * 20;
+      const ty = fish.anchorY + Math.sin(t * 0.7) * 13;
+      const k = Math.min(1, dt / 220);
+      fish.x += (tx - fish.x) * k;
+      fish.y += (ty - fish.y) * k;
+
+      if (time - fish.hoverAt > GUIDE.hoverMs) {
+        fish.mode = "exit";
+        fish.vx = (fish.dir === 0 ? (Math.random() < 0.5 ? -1 : 1) : fish.dir) * fish.speed;
+        fish.vy = (Math.random() - 0.5) * fish.speed * 0.35;
+        setFishFacing(fish, fish.vx);
+      }
+      return;
+    }
+
+    fish.x += fish.vx * step;
+    fish.y += fish.vy * step;
+  }
+
+  function setFishFacing(fish, dx) {
+    const next = dx >= 0 ? 1 : -1;
+    if (fish.faceDir === next) return;
+    fish.faceDir = next;
+    fish.wrap.style.setProperty("--dir", String(next));
+  }
+
+  function releaseActiveFish(fish, missed) {
+    if (GAME.activeFish !== fish) return;
+    GAME.activeFish = null;
+    if (missed) GAME.tally.missed += 1;
+    GAME.nextSpawnAt = performance.now() + GUIDE.spawnGapMs;
+  }
+
   function updateGame(time, dt) {
     for (let i = GAME.fishes.length - 1; i >= 0; i--) {
       const fish = GAME.fishes[i];
       if (fish.eaten) continue;
 
-      fish.x += fish.vx * (dt / 1000);
-      fish.y += fish.vy * (dt / 1000);
+      updateFishMotion(fish, time, dt);
+
       const sway = Math.sin((time / 1000) * fish.swayW + fish.phase) * fish.swayAmp;
       fish.el.style.transform =
         "translate3d(" + fish.x.toFixed(2) + "px, " + (fish.y + sway).toFixed(2) + "px, 0)";
@@ -708,13 +876,15 @@
           fish.entered = true;
         }
       } else if (
-        fish.x < -fish.w - 140 ||
-        fish.x > stageBox.w + 140 ||
-        fish.y < -fish.h - 140 ||
-        fish.y > stageBox.h + 140
+        fish.mode === "exit" &&
+        (fish.x < -fish.w - 140 ||
+          fish.x > stageBox.w + 140 ||
+          fish.y < -fish.h - 140 ||
+          fish.y > stageBox.h + 140)
       ) {
         if (fish.el.parentNode) fish.el.parentNode.removeChild(fish.el);
         GAME.fishes.splice(i, 1);
+        releaseActiveFish(fish, true);
       }
     }
 
@@ -731,27 +901,35 @@
 
     updateSuck(now);
 
-    GAME.spawnTimer -= dt;
-    if (GAME.spawnTimer <= 0) {
-      createGameFish();
-      GAME.spawnTimer = 1000 + Math.random() * 1000;
-    }
+    updateRound(now);
+    if (GAME.state !== "playing") return;
+
+    updateGuideHud(now);
+    updateSpawn(now);
   }
 
   function eatOne(fish) {
     if (fish.eaten) return;
     fish.eaten = true;
 
-    // 分值取决于鱼离画面中心多远：边角鱼 ×3，中环 ×2，中心 ×1
-    GAME.score += fishValue(fish);
+    // 基础价值看离中心多远；转头幅度到位再乘最多 1.5 倍，
+    // 用奖励而不是硬门槛引导「做到位」。
+    const base = fishValue(fish);
+    const needYaw = fish.needYaw || 0;
+    const yawAbs = Math.abs(GAME.poseYaw);
+    const quality = needYaw <= 0 ? 1 : Math.min(1.2, yawAbs / needYaw);
+    const value = Math.max(1, Math.round(base * (0.6 + quality * 0.9)));
+    GAME.score += value;
 
-    // 只有金色任务鱼推进任务进度，蓝色缓冲鱼只是休息
+    recordTally(fish, yawAbs, needYaw);
+
+    // 只有金色任务鱼推进任务进度，蓝色归中鱼只是休息
     if (fish.type === "task") {
-      advanceTask(fish);
+      advanceTask(value);
     }
 
     fish.locked = false;
-    fish.el.classList.remove("is-locked");
+    fish.el.classList.remove("is-locked", "is-reach");
     fish.el.classList.add("is-eaten");
 
     const rect = stage.getBoundingClientRect();
@@ -763,6 +941,25 @@
 
     const index = GAME.fishes.indexOf(fish);
     if (index >= 0) GAME.fishes.splice(index, 1);
+
+    releaseActiveFish(fish, false);
+  }
+
+  function recordTally(fish, yawAbs, needYaw) {
+    const tally = GAME.tally;
+    if (fish.dir < 0) {
+      tally.left += 1;
+      tally.leftPeak = Math.max(tally.leftPeak, yawAbs);
+    } else if (fish.dir > 0) {
+      tally.right += 1;
+      tally.rightPeak = Math.max(tally.rightPeak, yawAbs);
+    }
+    if (fish.dir !== 0) {
+      // 训练幅度阶梯只在主训阶段累计，热身/放松不参与加幅
+      const elapsed = GAME.roundStart ? performance.now() - GAME.roundStart : 0;
+      if (currentPhase(elapsed).id === "main") GAME.mainDone += 1;
+    }
+    if (needYaw <= 0 || yawAbs >= needYaw * GUIDE.reachRatio) tally.standard += 1;
   }
 
   function eatLocked() {
@@ -815,14 +1012,24 @@
 
     GAME.poseFresh = fresh;
     const usePose = Boolean(GAME.everPosed && pose);
+    GAME.poseYaw = usePose ? Number(pose.yaw) || 0 : GAME.aimX * 50;
+
+    // 角速度安全保护：快速甩头时短暂断开锁定，逼用户慢下来
+    if (usePose && fresh && Math.abs(Number(pose.yawRate) || 0) > GUIDE.maxYawRate) {
+      GAME.speedGuardUntil = now + 500;
+      if (now - GAME.lastSpeedWarnAt > 1500) GAME.lastSpeedWarnAt = now;
+    }
+    const speeding = now - GAME.lastSpeedWarnAt < 1200;
 
     let hintText;
     if (!usePose) {
       hintText = "移动鼠标控制位置 · 按住空格可连续吸鱼";
     } else if (!fresh) {
       hintText = "面部暂时丢失 · 准星保持在原位，请回正";
+    } else if (speeding) {
+      hintText = "慢一点 · 转头太快了，稳住再转";
     } else {
-      hintText = "上下左右晃动头部 · 张嘴一次即可连续吸鱼";
+      hintText = "跟着鱼的方向慢慢转头 · 到位后停一下";
     }
     if (hintText !== GAME.lastHint) {
       GAME.lastHint = hintText;
@@ -892,11 +1099,12 @@
 
     let anyLocked = false;
     const now = performance.now();
+    const guarded = now < GAME.speedGuardUntil;
 
     GAME.fishes.forEach(function (fish) {
       const dx = fish.x + fish.w / 2 - GAME.aimDrawX;
       const dy = fish.y + fish.h / 2 - GAME.aimDrawY;
-      const hit = Math.hypot(dx, dy) <= GAME.lockRadius;
+      const hit = !guarded && Math.hypot(dx, dy) <= GAME.lockRadius;
 
       if (hit !== fish.locked) {
         fish.locked = hit;
@@ -906,9 +1114,28 @@
         fish.lockedAt = now;
         anyLocked = true;
       }
+
+      const reach = fishNeedReach(fish);
+      if (reach !== fish.reach) {
+        fish.reach = reach;
+        fish.el.classList.toggle("is-reach", reach);
+      }
     });
 
     aimEl.classList.toggle("is-locked", anyLocked);
+    aimEl.classList.toggle("is-guarded", guarded);
+  }
+
+  /**
+   * 「做到位」：必须是朝鱼所在的同一方向转到目标幅度的 85% 以上。
+   * 不达标也能吃（收益打折），达标时金色环亮起、收益更高。
+   */
+  function fishNeedReach(fish) {
+    const need = fish.needYaw || 0;
+    if (need <= 0) return false;
+    if (fish.dir < 0) return GAME.poseYaw <= -need * GUIDE.reachRatio;
+    if (fish.dir > 0) return GAME.poseYaw >= need * GUIDE.reachRatio;
+    return false;
   }
 
   /**
@@ -937,6 +1164,143 @@
     GAME.lastChompAt = now;
   }
 
+  /* ---------- 出鱼调度：命中驱动 + 方向预告 ---------- */
+
+  function updateSpawn(now) {
+    // 吃掉或游走一条之后才安排下一条，节奏由用户掌控，不会堆鱼诱人乱甩
+    if (!GAME.activeFish && !GAME.pendingGuide && now >= GAME.nextSpawnAt) {
+      const guide = planGuide(now);
+      GAME.pendingGuide = guide;
+      showCue(guide.dir);
+      GAME.cueSpawnAt = now + GUIDE.cueMs;
+      return;
+    }
+
+    if (GAME.pendingGuide && now >= GAME.cueSpawnAt) {
+      const guide = GAME.pendingGuide;
+      GAME.pendingGuide = null;
+      hideCue();
+      createGameFish(guide);
+    }
+  }
+
+  function showCue(dir) {
+    if (!fishStage || GAME.cueEl) return;
+    const el = document.createElement("div");
+    el.className =
+      "fish-cue " +
+      (dir < 0 ? "fish-cue--left" : dir > 0 ? "fish-cue--right" : "fish-cue--center");
+    el.innerHTML = '<span class="fish-cue__beam"></span><span class="fish-cue__ring"></span>';
+    fishStage.appendChild(el);
+    GAME.cueEl = el;
+  }
+
+  function hideCue() {
+    if (GAME.cueEl && GAME.cueEl.parentNode) GAME.cueEl.parentNode.removeChild(GAME.cueEl);
+    GAME.cueEl = null;
+  }
+
+  /* ---------- 90 秒训练进程 ---------- */
+
+  function updateRound(now) {
+    if (!GAME.roundStart || GAME.state !== "playing") return;
+    if (now - GAME.roundStart >= GUIDE.roundMs) endRound();
+  }
+
+  function updateGuideHud(now) {
+    if (now - GAME.lastGuideHudAt < 200) return;
+    GAME.lastGuideHudAt = now;
+
+    const elapsed = Math.max(0, now - GAME.roundStart);
+    const phase = currentPhase(elapsed);
+    const remain = Math.max(0, Math.ceil((phase.to - elapsed) / 1000));
+
+    if (hudPhaseEl) {
+      hudPhaseEl.textContent =
+        phase.label + " · " + Math.floor(remain / 60) + ":" + String(remain % 60).padStart(2, "0");
+    }
+
+    let dirText = "等待下一条鱼";
+    const target = GAME.pendingGuide || GAME.activeFish;
+    if (target) {
+      if (target.dir < 0) dirText = "向左转头 " + target.needYaw + "°";
+      else if (target.dir > 0) dirText = "向右转头 " + target.needYaw + "°";
+      else dirText = "回正 · 蓝色休息鱼";
+    }
+    if (hudDirEl && hudDirEl.textContent !== dirText) hudDirEl.textContent = dirText;
+
+    if (hudAngleEl) {
+      const yaw = GAME.poseYaw;
+      hudAngleEl.textContent = Math.abs(yaw) < 2
+        ? "当前 回正中"
+        : "当前 " + (yaw > 0 ? "右 " : "左 ") + Math.abs(yaw).toFixed(0) + "°";
+    }
+
+    if (hudBarFillEl) {
+      const pct = Math.min(100, Math.max(0, (elapsed / GUIDE.roundMs) * 100));
+      hudBarFillEl.style.width = pct.toFixed(1) + "%";
+    }
+  }
+
+  function endRound() {
+    GAME.state = "roundEnd";
+    GAME.pendingGuide = null;
+    hideCue();
+    clearGameFish();
+    GAME.activeFish = null;
+    GAME.suckUntil = 0;
+    GAME.keyHold = false;
+    if (aimEl) aimEl.classList.remove("is-locked", "is-sucking", "is-guarded", "is-bite");
+
+    renderRoundSummary();
+    if (hudEl) hudEl.hidden = true;
+    if (roundEndEl) roundEndEl.hidden = false;
+  }
+
+  function renderRoundSummary() {
+    const tally = GAME.tally;
+    const total = tally.left + tally.right;
+    const diff = Math.abs(tally.left - tally.right);
+
+    if (roundLeftEl) roundLeftEl.textContent = tally.left + " 次";
+    if (roundRightEl) roundRightEl.textContent = tally.right + " 次";
+    if (roundLeftPeakEl) roundLeftPeakEl.textContent = "峰值 " + Math.round(tally.leftPeak) + "°";
+    if (roundRightPeakEl) roundRightPeakEl.textContent = "峰值 " + Math.round(tally.rightPeak) + "°";
+    if (roundStandardEl) roundStandardEl.textContent = String(tally.standard);
+    if (roundMissedEl) roundMissedEl.textContent = String(tally.missed);
+
+    let balance = "左右已配平";
+    let warn = false;
+    if (total === 0) {
+      balance = "本组还没有完成动作";
+    } else if (diff / total > 0.2) {
+      warn = true;
+      balance = tally.left > tally.right ? "右侧偏少 · 下一组补做右边" : "左侧偏少 · 下一组补做左边";
+    }
+
+    if (roundBalanceEl) {
+      roundBalanceEl.textContent = balance;
+      roundBalanceEl.classList.toggle("is-warn", warn);
+    }
+  }
+
+  function resetRoundState() {
+    GAME.roundStart = 0;
+    GAME.guideSeq = [];
+    GAME.lastGuideDir = 0;
+    GAME.mainDone = 0;
+    GAME.activeFish = null;
+    GAME.pendingGuide = null;
+    GAME.nextSpawnAt = 0;
+    GAME.poseYaw = 0;
+    GAME.speedGuardUntil = 0;
+    GAME.lastSpeedWarnAt = 0;
+    GAME.lastGuideHudAt = 0;
+    GAME.tally = { left: 0, right: 0, leftPeak: 0, rightPeak: 0, standard: 0, missed: 0 };
+    hideCue();
+    if (roundEndEl) roundEndEl.hidden = true;
+  }
+
   function updateHud() {
     if (hudScoreEl) hudScoreEl.textContent = String(GAME.score);
     if (hudComboEl) {
@@ -958,9 +1322,9 @@
     return 1;
   }
 
-  function advanceTask(fish) {
+  function advanceTask(value) {
     const task = TASKS[GAME.taskIndex];
-    GAME.taskEaten += fishValue(fish);
+    GAME.taskEaten += value;
 
     if (GAME.taskEaten >= task.goal) {
       completeTask();
@@ -1025,6 +1389,7 @@
     GAME.suckUntil = 0;
     GAME.lastChompAt = 0;
     GAME.keyHold = false;
+    GAME.lastHint = "";
 
     document.body.dataset.mode = "immersive";
     if (hudEl) hudEl.hidden = false;
@@ -1036,7 +1401,7 @@
   function exitImmersive() {
     document.body.dataset.mode = "";
     if (hudEl) hudEl.hidden = true;
-    if (aimEl) aimEl.classList.remove("is-locked", "is-bite");
+    if (aimEl) aimEl.classList.remove("is-locked", "is-bite", "is-sucking", "is-guarded");
 
     clearGameFish();
     GAME.state = "idle";
@@ -1049,6 +1414,7 @@
     GAME.suckUntil = 0;
     GAME.lastChompAt = 0;
     GAME.keyHold = false;
+    resetRoundState();
 
     if (interactionEl) {
       delete interactionEl.dataset.state;
@@ -1061,26 +1427,42 @@
     GAME.state = "playing";
     GAME.score = 0;
     GAME.combo = 1;
-    GAME.spawnTimer = 160;
+    GAME.spawnTimer = 0;
     GAME.introUntil = 0;
+    resetRoundState();
     if (interactionEl) interactionEl.dataset.state = "playing";
     // 开局前切回首页，避免在演示页上进入沉浸态
     setView("home");
     enterImmersive();
     updateInteractionText();
 
+    const beginRound = function () {
+      GAME.introUntil = 0;
+      // 入场镜头落定后才开始计时和出鱼，避免动画期间鱼先游起来
+      GAME.roundStart = performance.now();
+      GAME.nextSpawnAt = GAME.roundStart + 400;
+    };
+
     const dive = window.MindFlowDive && window.MindFlowDive.play ? window.MindFlowDive.play() : null;
     if (dive) {
       GAME.introUntil = performance.now() + 2600;
-      dive.then(function () {
-        GAME.introUntil = 0;
-      }).catch(function () {
-        GAME.introUntil = 0;
-        createGameFish();
-      });
+      dive.then(beginRound).catch(beginRound);
     } else {
-      createGameFish();
+      beginRound();
     }
+  }
+
+  function startAgain() {
+    if (roundEndEl) roundEndEl.hidden = true;
+    clearGameFish();
+    GAME.state = "playing";
+    GAME.score = 0;
+    GAME.combo = 1;
+    GAME.introUntil = 0;
+    resetRoundState();
+    enterImmersive();
+    GAME.roundStart = performance.now();
+    GAME.nextSpawnAt = GAME.roundStart + 300;
   }
 
   function faceTrigger() {
@@ -1088,6 +1470,7 @@
       startGame();
       return;
     }
+    if (GAME.state !== "playing") return;
     // 每张嘴一次，给 2.2 秒自动吞鱼窗口
     GAME.suckUntil = performance.now() + 2200;
     GAME.lastChompAt = 0;
@@ -1137,7 +1520,7 @@
       }
       return;
     }
-    if (event.code === "Escape" && GAME.state === "playing") {
+    if (event.code === "Escape" && (GAME.state === "playing" || GAME.state === "roundEnd")) {
       exitImmersive();
     }
   });
@@ -1150,6 +1533,18 @@
 
   if (hudExitEl) {
     hudExitEl.addEventListener("click", function () {
+      exitImmersive();
+    });
+  }
+
+  if (roundAgainEl) {
+    roundAgainEl.addEventListener("click", function () {
+      startAgain();
+    });
+  }
+
+  if (roundExitEl) {
+    roundExitEl.addEventListener("click", function () {
       exitImmersive();
     });
   }
@@ -1171,6 +1566,25 @@
         done: GAME.completedTasks
       };
     },
+    guide: function () {
+      const elapsed = GAME.roundStart ? performance.now() - GAME.roundStart : 0;
+      const phase = currentPhase(elapsed);
+      const target = GAME.pendingGuide || GAME.activeFish;
+      return {
+        phase: phase.id,
+        elapsed: Math.round(elapsed),
+        remain: Math.max(0, Math.round(GUIDE.roundMs - elapsed)),
+        dir: target ? target.dir : 0,
+        needYaw: target ? target.needYaw : 0,
+        poseYaw: Math.round(GAME.poseYaw),
+        locked: GAME.fishes.some(function (fish) {
+          return fish.locked;
+        }),
+        fishMode: GAME.activeFish ? GAME.activeFish.mode : "",
+        tally: { ...GAME.tally }
+      };
+    },
+    endRound: endRound,
     moveToMouth: function () {
       if (!GAME.fishes.length) return false;
       const fish = GAME.fishes[0];

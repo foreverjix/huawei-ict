@@ -52,6 +52,9 @@ function boot() {
   let noseSX = null;
   let noseSY = null;
   let baselineFaceW = 0;
+  let lastYawAt = 0;
+  let lastYawValue = 0;
+  let yawRateSmooth = 0;
 
   const counters = { YAWN: 0, MOUTH_OPEN: 0, TURN: 0 };
   const localDistractionMs = { value: 0 };
@@ -72,6 +75,9 @@ function boot() {
     noseSX = null;
     noseSY = null;
     baselineFaceW = 0;
+    lastYawAt = 0;
+    lastYawValue = 0;
+    yawRateSmooth = 0;
     setStatus("重新校准中", "busy");
     els.calibrate.disabled = true;
   });
@@ -147,7 +153,19 @@ function boot() {
     noseSX = null;
     noseSY = null;
     baselineFaceW = 0;
-    window.MindFlowPose = { x: 0, y: 0, active: false, t: performance.now() };
+    lastYawAt = 0;
+    lastYawValue = 0;
+    yawRateSmooth = 0;
+    window.MindFlowPose = {
+      x: 0,
+      y: 0,
+      yaw: 0,
+      pitch: 0,
+      roll: 0,
+      yawRate: 0,
+      active: false,
+      t: performance.now()
+    };
     if (reporter) await reporter.close();
     if (camera) camera.stop();
     if (tracker) tracker.close();
@@ -187,12 +205,22 @@ function boot() {
 
   function updatePose(sample, debug) {
     const now = performance.now();
-    const prev = window.MindFlowPose || { x: 0, y: 0 };
+    const prev = window.MindFlowPose || { x: 0, y: 0, yaw: 0, pitch: 0, roll: 0 };
 
     if (!debug.hasFace || !debug.baselineReady) {
       // 关键：丢帧只把 active 置否，保留上一次的 x/y。
       // 否则大幅晃头短暂丢脸时，准星会先弹回中心、恢复后再弹出去。
-      window.MindFlowPose = { x: prev.x || 0, y: prev.y || 0, active: false, t: now };
+      yawRateSmooth += (0 - yawRateSmooth) * 0.4;
+      window.MindFlowPose = {
+        x: prev.x || 0,
+        y: prev.y || 0,
+        yaw: prev.yaw || 0,
+        pitch: prev.pitch || 0,
+        roll: prev.roll || 0,
+        yawRate: yawRateSmooth,
+        active: false,
+        t: now
+      };
       return;
     }
 
@@ -205,7 +233,16 @@ function boot() {
         noseYBaseline = noseYAcc / noseN;
         baselineFaceW = sample.faceWidth;
       }
-      window.MindFlowPose = { x: prev.x || 0, y: prev.y || 0, active: false, t: now };
+      window.MindFlowPose = {
+        x: prev.x || 0,
+        y: prev.y || 0,
+        yaw: 0,
+        pitch: 0,
+        roll: 0,
+        yawRate: 0,
+        active: false,
+        t: now
+      };
       return;
     }
 
@@ -229,9 +266,24 @@ function boot() {
     const rangeX = 0.85 - sens * 0.0375;
     const rangeY = rangeX * 0.92;
 
+    // 转头角度：behavior-engine 已做 5 帧中值滤波，正值 = 向右转头
+    const yawNow = Number(debug.deltaYaw) || 0;
+    const dtMs = now - lastYawAt;
+    let yawRate = 0;
+    if (lastYawAt && dtMs > 8) {
+      yawRate = (yawNow - lastYawValue) / (dtMs / 1000);
+    }
+    lastYawAt = now;
+    lastYawValue = yawNow;
+    yawRateSmooth += (yawRate - yawRateSmooth) * 0.35;
+
     window.MindFlowPose = {
       x: Math.max(-1, Math.min(1, dx / rangeX)),
       y: Math.max(-1, Math.min(1, dy / rangeY)),
+      yaw: yawNow,
+      pitch: Number(debug.deltaPitch) || 0,
+      roll: Number(debug.deltaRoll) || 0,
+      yawRate: yawRateSmooth,
       active: true,
       t: now
     };
