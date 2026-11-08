@@ -33,7 +33,7 @@ public class LlmAnalysisService {
     }
 
     public Outcome analyze(String documentName, String text, String skillCode, String customPrompt) {
-        LlmSetting setting = settingService.getEntity();
+        LlmSetting setting = settingService.effective();
         requireApiKey(setting);
 
         String code = skillCode == null || skillCode.isBlank() ? "summary" : skillCode;
@@ -57,7 +57,7 @@ public class LlmAnalysisService {
     }
 
     public LlmTestResult test() {
-        LlmSetting setting = settingService.getEntity();
+        LlmSetting setting = settingService.effective();
         requireApiKey(setting);
 
         long startedAt = System.currentTimeMillis();
@@ -92,7 +92,20 @@ public class LlmAnalysisService {
                 + "\n【文档正文" + (truncated ? "（内容过长，已截断）" : "") + "】\n" + body;
     }
 
+    public String complete(String systemPrompt, String userPrompt, int maxTokens, int readTimeoutMs) {
+        LlmSetting setting = settingService.effective();
+        requireApiKey(setting);
+        return call(setting, systemPrompt, userPrompt, maxTokens, readTimeoutMs);
+    }
+
     private String call(LlmSetting setting, String systemPrompt, String userPrompt, int maxTokens) {
+        return call(setting, systemPrompt, userPrompt, maxTokens, 120_000);
+    }
+
+    private String call(LlmSetting setting, String systemPrompt, String userPrompt, int maxTokens,
+                        int readTimeoutMs) {
+        UrlGuard.requireSafe(setting.getBaseUrl());
+
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", setting.getModel());
         payload.put("temperature", 0.2);
@@ -103,7 +116,7 @@ public class LlmAnalysisService {
         ));
 
         try {
-            JsonNode response = restClient().post()
+            JsonNode response = restClient(readTimeoutMs).post()
                     .uri(endpoint(setting.getBaseUrl()))
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + setting.getApiKey())
                     .contentType(MediaType.APPLICATION_JSON)
@@ -142,10 +155,10 @@ public class LlmAnalysisService {
         return content.asText("").trim();
     }
 
-    private RestClient restClient() {
+    private RestClient restClient(int readTimeoutMs) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(10_000);
-        factory.setReadTimeout(120_000);
+        factory.setReadTimeout(readTimeoutMs);
         return RestClient.builder().requestFactory(factory).build();
     }
 

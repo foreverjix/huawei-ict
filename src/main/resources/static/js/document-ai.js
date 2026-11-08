@@ -21,7 +21,16 @@ const els = {
   llmSave: document.getElementById("llm-save"),
   llmTest: document.getElementById("llm-test"),
   llmStatus: document.getElementById("llm-status"),
-  llmMessage: document.getElementById("llm-message")
+  llmMessage: document.getElementById("llm-message"),
+  tasksRoot: document.getElementById("doc-tasks"),
+  tasksProgress: document.getElementById("doc-tasks-progress"),
+  tasksGenerate: document.getElementById("doc-tasks-generate"),
+  tasksList: document.getElementById("doc-tasks-list"),
+  tasksReader: document.getElementById("doc-tasks-reader"),
+  tasksReaderTitle: document.getElementById("doc-tasks-reader-title"),
+  tasksReaderText: document.getElementById("doc-tasks-reader-text"),
+  tasksClose: document.getElementById("doc-tasks-close"),
+  tasksComplete: document.getElementById("doc-tasks-complete")
 };
 
 let documents = [];
@@ -32,6 +41,9 @@ let documentsLoaded = false;
 let skillsLoaded = false;
 let settingsLoaded = false;
 let documentsError = false;
+let tasks = [];
+let activeTaskId = null;
+let tasksBusy = false;
 
 if (els.picker && els.fileInput) {
   boot();
@@ -336,6 +348,7 @@ function selectDocument(doc) {
   els.analyzeHint.textContent = doc.analyzable
     ? "已提取 " + doc.textChars + " 字，选择 Skill 后开始分析。"
     : "该文档没有提取到文本，无法分析。";
+  loadTasks(doc.id);
   showResult("");
 }
 
@@ -412,4 +425,155 @@ function friendlyError(error) {
   if (error.status === 400 || error.status === 409) return error.message;
   if (!error.status) return "后端未连接，请用 Spring Boot 启动 8080 后重试";
   return error.message;
+}
+async function loadTasks(documentId) {
+  if (!els.tasksRoot || !documentId) return;
+  els.tasksRoot.hidden = false;
+  els.tasksGenerate.hidden = true;
+  els.tasksProgress.textContent = "加载中…";
+  els.tasksList.textContent = "";
+  closeReader();
+  try {
+    const data = await api("/documents/" + documentId + "/tasks");
+    tasks = data.tasks || [];
+    renderTasks(data);
+  } catch (error) {
+    tasks = [];
+    els.tasksProgress.textContent = "任务不可用";
+    els.tasksGenerate.hidden = false;
+  }
+}
+
+function renderTasks(data) {
+  if (!els.tasksList) return;
+  els.tasksList.textContent = "";
+  const list = (data && data.tasks) || tasks;
+  const total = list.length;
+  const completed = list.filter(function (task) { return task.status === "DONE"; }).length;
+
+  if (total === 0) {
+    els.tasksGenerate.hidden = false;
+    els.tasksProgress.textContent = "尚未生成";
+    return;
+  }
+  els.tasksGenerate.hidden = true;
+  els.tasksProgress.textContent = "已完成 " + completed + " / " + total
+    + (data && data.source === "ai" ? " · AI 拆段" : "");
+
+  list.forEach(function (task) {
+    const item = document.createElement("li");
+    item.className = "doc-task doc-task--" + String(task.status).toLowerCase();
+
+    const seq = document.createElement("span");
+    seq.className = "doc-task__seq";
+    seq.textContent = String(task.seq).padStart(2, "0");
+
+    const body = document.createElement("div");
+    body.className = "doc-task__body";
+    const title = document.createElement("b");
+    title.textContent = task.title || ("第 " + task.seq + " 段");
+    const summary = document.createElement("small");
+    summary.textContent = (task.summary || "") + " · " + task.chars + " 字";
+    body.appendChild(title);
+    body.appendChild(summary);
+
+    const state = document.createElement("span");
+    state.className = "doc-task__state";
+    state.textContent = task.status === "DONE" ? "已完成"
+      : task.status === "READY" ? "可读" : "未解锁";
+
+    item.appendChild(seq);
+    item.appendChild(body);
+    item.appendChild(state);
+
+    if (task.status !== "LOCKED") {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "doc-task__btn";
+      btn.textContent = task.status === "DONE" ? "重读" : "开始读";
+      btn.addEventListener("click", function () {
+        openTask(task.id);
+      });
+      item.appendChild(btn);
+    }
+
+    els.tasksList.appendChild(item);
+  });
+}
+
+async function generateTasks() {
+  if (!activeDoc || tasksBusy) return;
+  tasksBusy = true;
+  els.tasksGenerate.disabled = true;
+  els.tasksProgress.textContent = "正在拆段…";
+  try {
+    const data = await api("/documents/" + activeDoc.id + "/tasks", { method: "POST" });
+    tasks = data.tasks || [];
+    renderTasks(data);
+  } catch (error) {
+    els.tasksProgress.textContent = friendlyError(error);
+  } finally {
+    tasksBusy = false;
+    els.tasksGenerate.disabled = false;
+  }
+}
+
+async function openTask(taskId) {
+  if (!activeDoc) return;
+  activeTaskId = taskId;
+  try {
+    const data = await api("/documents/" + activeDoc.id + "/tasks/" + taskId);
+    showReader(data);
+  } catch (error) {
+    els.tasksProgress.textContent = friendlyError(error);
+  }
+}
+
+function showReader(data) {
+  if (!els.tasksReader) return;
+  els.tasksReader.hidden = false;
+  els.tasksReaderTitle.textContent = (data.seq ? "第 " + data.seq + " 段 · " : "") + (data.title || "");
+  els.tasksReaderText.textContent = data.content || "";
+  els.tasksReaderText.scrollTop = 0;
+  els.tasksComplete.textContent = data.status === "DONE" ? "已完成" : "我读完了";
+  els.tasksComplete.disabled = data.status === "DONE";
+}
+
+function closeReader() {
+  activeTaskId = null;
+  if (!els.tasksReader) return;
+  els.tasksReader.hidden = true;
+  els.tasksReaderText.textContent = "";
+}
+
+async function completeTask() {
+  if (!activeDoc || !activeTaskId || tasksBusy) return;
+  tasksBusy = true;
+  els.tasksComplete.disabled = true;
+  try {
+    const data = await api("/documents/" + activeDoc.id + "/tasks/" + activeTaskId + "/complete", {
+      method: "POST"
+    });
+    tasks = data.tasks || [];
+    renderTasks(data);
+    closeReader();
+    els.tasksProgress.textContent = "已完成 " + data.completed + " / " + data.total + " · 已解锁一次下潜";
+    goHomeForDive();
+  } catch (error) {
+    els.tasksProgress.textContent = friendlyError(error);
+  } finally {
+    tasksBusy = false;
+    if (els.tasksComplete) els.tasksComplete.disabled = false;
+  }
+}
+
+function goHomeForDive() {
+  window.setTimeout(function () {
+    const nav = document.querySelector('.nav__item[data-view="home"]');
+    if (nav) {
+      nav.click();
+    } else {
+      document.body.dataset.page = "home";
+    }
+  }, 900);
 }

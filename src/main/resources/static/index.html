@@ -171,12 +171,20 @@
         <div class="game-hud__hint">
           跟着鱼的方向慢慢转头 · 到位后停一下
         </div>
-        <button class="game-hud__exit" id="hud-exit" type="button">退出游戏</button>
+        <div class="game-hud__actions">
+          <button class="game-hud__music" id="hud-music" type="button" aria-pressed="true">音乐 开</button>
+          <button class="game-hud__exit" id="hud-exit" type="button">退出游戏</button>
+        </div>
+      </div>
+
+      <div class="game-toast" id="game-toast" role="status" aria-live="polite">
+        <b class="game-toast__title" id="game-toast-title"></b>
+        <span class="game-toast__detail" id="game-toast-detail"></span>
       </div>
 
       <div class="round-end" id="round-end" hidden>
         <div class="round-end__panel">
-          <p class="round-end__eyebrow">本组 90 秒完成</p>
+          <p class="round-end__eyebrow" id="round-eyebrow">本组 90 秒完成</p>
           <h2 class="round-end__title">颈部活动度小结</h2>
           <div class="round-end__grid">
             <div class="round-end__item">
@@ -193,6 +201,10 @@
           <p class="round-end__balance" id="round-balance">左右已配平</p>
           <p class="round-end__note">
             动作到位 <b id="round-standard">0</b> 次 · 漏掉 <b id="round-missed">0</b> 条
+          </p>
+          <p class="round-end__ai" id="round-ai" hidden>
+            <span class="round-end__ai-tag" id="round-ai-tag">AI 点评</span>
+            <span class="round-end__ai-text" id="round-ai-text"></span>
           </p>
           <p class="round-end__rest">建议每小时一组，组间休息 3 分钟</p>
           <div class="round-end__actions">
@@ -242,6 +254,25 @@
             </p>
           </div>
 
+          <div class="doc-tasks" id="doc-tasks" hidden>
+            <header class="doc-tasks__head">
+              <div class="doc-tasks__title">
+                <b>阅读任务</b>
+                <small id="doc-tasks-progress">尚未生成</small>
+              </div>
+              <button class="doc-tasks__btn" id="doc-tasks-generate" type="button">生成任务</button>
+            </header>
+            <ul class="doc-tasks__list" id="doc-tasks-list"></ul>
+            <div class="doc-tasks__reader" id="doc-tasks-reader" hidden>
+              <div class="doc-tasks__reader-head">
+                <b id="doc-tasks-reader-title"></b>
+                <button class="doc-tasks__close" id="doc-tasks-close" type="button">收起</button>
+              </div>
+              <p class="doc-tasks__reader-text" id="doc-tasks-reader-text"></p>
+              <button class="doc-tasks__btn doc-tasks__btn--primary" id="doc-tasks-complete" type="button">我读完了</button>
+            </div>
+          </div>
+
           <p class="page-view__note">上传的文档会保存在本机，分析由设置页配置的模型服务完成</p>
         </div>
       </section>
@@ -280,7 +311,7 @@
           <ol class="rules-list">
             <li>
               <b>开启摄像头</b>
-              <p>点击右侧「专注监测」的开始按钮，允许摄像头权限，正坐 2 秒完成姿态校准。</p>
+              <p>点击页面中央的「开启摄像头」按钮，允许摄像头权限，正坐 2 秒完成姿态校准。右侧面板也会显示实时识别状态。</p>
             </li>
             <li>
               <b>张嘴开局</b>
@@ -288,7 +319,7 @@
             </li>
             <li>
               <b>跟着鱼的方向转头</b>
-              <p>鱼会从需要活动的方向游来：左侧的鱼要向左转头，右侧的鱼要向右转头，中间的金色方向环是目标。蓝色鱼在画面中间，代表回正休息。</p>
+              <p>鱼会从需要活动的方向游来：左侧的鱼要向左转头，右侧的鱼要向右转头，中间的金色方向环是目标。蓝色鱼在画面中间，代表回正休息。主训段还会各来一条上方和下方的鱼，对应抬头后伸与低头，幅度比左右更小。</p>
             </li>
             <li>
               <b>做「到位」的那一下</b>
@@ -565,10 +596,13 @@
 
   </div>
 
+  <audio id="bgm-audio" preload="auto"></audio>
+
   <script src="vendor/three.min.js"></script>
   <script src="water-light.js"></script>
   <script src="js/dive.js"></script>
   <script src="vendor/liquid-glass.js"></script>
+  <script src="js/game-audio.js"></script>
   <script src="app.js"></script>
   <script type="module" src="js/monitor.js"></script>
   <script type="module" src="js/document-ai.js"></script>

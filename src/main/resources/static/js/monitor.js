@@ -40,6 +40,18 @@ function boot() {
   let reporter = null;
   let running = false;
   let rafId = 0;
+
+  window.MindFlowCamera = {
+    isRunning: function () {
+      return running;
+    }
+  };
+
+  function notifyCamera(on) {
+    window.dispatchEvent(new CustomEvent("mindflow:camera", {
+      detail: { running: on }
+    }));
+  }
   let lastVideoTime = -1;
   let sessionStartedAt = 0;
   let summaryTimer = 0;
@@ -124,6 +136,7 @@ function boot() {
       updateCounters();
 
       running = true;
+      notifyCamera(true);
       lastVideoTime = -1;
       els.toggle.textContent = "停止监测";
       els.toggle.disabled = false;
@@ -139,6 +152,7 @@ function boot() {
 
   async function stop() {
     running = false;
+    notifyCamera(false);
     cancelAnimationFrame(rafId);
     window.clearInterval(summaryTimer);
     summaryTimer = 0;

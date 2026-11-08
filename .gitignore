@@ -5,8 +5,11 @@ node_modules/
 target/
 data/
 *.log
+.env
 preview*.png
 shot*.png
 check.png
 .DS_Store
 Thumbs.db
+Music/
+src/main/resources/static/assets/audio/

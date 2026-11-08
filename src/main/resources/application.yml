@@ -1,10 +1,13 @@
 server:
   port: 8080
+  address: ${MINDFLOW_BIND_ADDRESS:127.0.0.1}
   shutdown: graceful
 
 spring:
   application:
     name: mindflow
+  config:
+    import: optional:file:./.env[.properties]
   servlet:
     multipart:
       max-file-size: 25MB
@@ -23,8 +26,10 @@ spring:
         format_sql: true
   h2:
     console:
-      enabled: true
+      enabled: ${MINDFLOW_H2_CONSOLE:false}
       path: /h2-console
+      settings:
+        web-allow-others: false
   jackson:
     serialization:
       write-dates-as-timestamps: false
@@ -33,9 +38,19 @@ spring:
 logging:
   level:
     com.mindflow: debug
+
 mindflow:
   storage:
     root: ./data/uploads
   llm:
-    default-base-url: https://api.deepseek.com/v1
-    default-model: deepseek-chat
+    default-base-url: ${MINDFLOW_LLM_BASE_URL:https://api.deepseek.com/v1}
+    default-model: ${MINDFLOW_LLM_MODEL:deepseek-chat}
+  ocr:
+    enabled: ${MINDFLOW_OCR_ENABLED:false}
+    endpoint: ${MINDFLOW_OCR_ENDPOINT:}
+    region: ${MINDFLOW_OCR_REGION:cn-north-4}
+    project-id: ${MINDFLOW_OCR_PROJECT_ID:}
+    ak: ${MINDFLOW_OCR_AK:}
+    sk: ${MINDFLOW_OCR_SK:}
+    max-pages: ${MINDFLOW_OCR_MAX_PAGES:10}
+    dpi: ${MINDFLOW_OCR_DPI:150}

@@ -22,6 +22,9 @@ public class LlmSettingService {
     @Value("${mindflow.llm.default-model:deepseek-chat}")
     private String defaultModel;
 
+    @Value("${MINDFLOW_LLM_API_KEY:}")
+    private String envApiKey;
+
     @Resource
     private LlmSettingRepository settingRepository;
 
@@ -41,9 +44,29 @@ public class LlmSettingService {
         });
     }
 
+    public LlmSetting effective() {
+        LlmSetting source = getEntity();
+        LlmSetting copy = new LlmSetting();
+        copy.setId(source.getId());
+        copy.setBaseUrl(firstNonBlank(source.getBaseUrl(), defaultBaseUrl));
+        copy.setModel(firstNonBlank(source.getModel(), defaultModel));
+        copy.setApiKey(firstNonBlank(source.getApiKey(), envApiKey));
+        copy.setSkillCode(source.getSkillCode());
+        copy.setCustomPrompt(source.getCustomPrompt());
+        copy.setUpdatedAt(source.getUpdatedAt());
+        return copy;
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        if (value != null && !value.isBlank()) {
+            return value;
+        }
+        return fallback;
+    }
+
     @Transactional
     public LlmSettingsDto getDto() {
-        return toDto(getEntity());
+        return toDto(effective());
     }
 
     @Transactional
@@ -52,9 +75,7 @@ public class LlmSettingService {
 
         if (request.baseUrl() != null && !request.baseUrl().isBlank()) {
             String baseUrl = request.baseUrl().trim();
-            if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-                throw new IllegalArgumentException("Base URL 必须以 http:// 或 https:// 开头");
-            }
+            UrlGuard.requireSafe(baseUrl);
             setting.setBaseUrl(baseUrl);
         }
 

@@ -6,6 +6,7 @@ import com.mindflow.dto.DocumentDto;
 import com.mindflow.entity.DocumentAnalysis;
 import com.mindflow.entity.MindflowDocument;
 import com.mindflow.repository.DocumentAnalysisRepository;
+import com.mindflow.repository.DocumentTaskRepository;
 import com.mindflow.repository.MindflowDocumentRepository;
 import jakarta.annotation.Resource;
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -47,6 +48,12 @@ public class DocumentService {
 
     @Resource
     private LlmAnalysisService llmAnalysisService;
+
+    @Resource
+    private OcrService ocrService;
+
+    @Resource
+    private DocumentTaskRepository taskRepository;
 
     public DocumentDto store(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -110,6 +117,7 @@ public class DocumentService {
     public void delete(String id) {
         MindflowDocument document = require(id);
         fileStorageService.delete(document.getStoragePath());
+        taskRepository.deleteByDocumentId(id);
         analysisRepository.deleteByDocumentId(id);
         documentRepository.delete(document);
     }
@@ -186,16 +194,24 @@ public class DocumentService {
 
     private String extractText(Path path, String extension) {
         if ("pdf".equals(extension)) {
-            try (PDDocument pdf = PDDocument.load(path.toFile())) {
-                return new PDFTextStripper().getText(pdf);
-            } catch (IOException exception) {
-                return "";
+            String embedded = extractPdfText(path);
+            if (embedded != null && !embedded.isBlank()) {
+                return embedded;
             }
+            return ocrService.tryRecognize(path);
         }
         try {
             byte[] bytes = Files.readAllBytes(path);
             String text = new String(bytes, StandardCharsets.UTF_8);
             return text.indexOf('\u0000') >= 0 ? "" : text;
+        } catch (IOException exception) {
+            return "";
+        }
+    }
+
+    private String extractPdfText(Path path) {
+        try (PDDocument pdf = PDDocument.load(path.toFile())) {
+            return new PDFTextStripper().getText(pdf);
         } catch (IOException exception) {
             return "";
         }

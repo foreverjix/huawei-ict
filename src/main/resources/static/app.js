@@ -484,6 +484,8 @@
   const hudComboEl = document.getElementById("hud-combo");
   const hudHintEl = document.querySelector(".game-hud__hint");
   const hudExitEl = document.getElementById("hud-exit");
+  const hudMusicEl = document.getElementById("hud-music");
+  const bgmEl = document.getElementById("bgm-audio");
   const hudTaskEl = document.getElementById("hud-task");
   const hudDirEl = document.getElementById("hud-dir");
   const hudAngleEl = document.getElementById("hud-angle");
@@ -497,6 +499,13 @@
   const roundBalanceEl = document.getElementById("round-balance");
   const roundStandardEl = document.getElementById("round-standard");
   const roundMissedEl = document.getElementById("round-missed");
+  const roundEyebrowEl = document.getElementById("round-eyebrow");
+  const gameToastEl = document.getElementById("game-toast");
+  const gameToastTitleEl = document.getElementById("game-toast-title");
+  const gameToastDetailEl = document.getElementById("game-toast-detail");
+  const roundAiEl = document.getElementById("round-ai");
+  const roundAiTagEl = document.getElementById("round-ai-tag");
+  const roundAiTextEl = document.getElementById("round-ai-text");
   const roundAgainEl = document.getElementById("round-again");
   const roundExitEl = document.getElementById("round-exit");
   const taskBadgeEl = document.getElementById("task-badge");
@@ -561,7 +570,8 @@
     speedGuardUntil: 0,
     lastSpeedWarnAt: 0,
     lastGuideHudAt: 0,
-    tally: { left: 0, right: 0, leftPeak: 0, rightPeak: 0, standard: 0, missed: 0 }
+    tally: { left: 0, right: 0, leftPeak: 0, rightPeak: 0, up: 0, down: 0, standard: 0, missed: 0 },
+    verticalPlan: []
   };
 
   /**
@@ -579,8 +589,77 @@
       { id: "warmup", label: "热身", from: 0, to: 15000, yaw: 20 },
       { id: "main", label: "主训", from: 15000, to: 65000, yaw: 25 },
       { id: "cool", label: "放松", from: 65000, to: 90000, yaw: 15 }
-    ]
+    ],
+    vertical: {
+      at: [28000, 48000],
+      upYaw: 15,
+      downYaw: 20
+    }
   };
+
+  let planFocus = "balanced";
+  let planNote = "";
+
+  function sfx(name, value) {
+    const audio = window.MindFlowAudio;
+    if (audio && typeof audio[name] === "function") {
+      audio[name](value);
+    }
+  }
+
+  const BGM_TRACKS = [
+    "assets/audio/bgm_01.mp3",
+    "assets/audio/bgm_02.mp3"
+  ];
+  const BGM_VOLUME = 0.32;
+  const BGM_DUCK_VOLUME = 0.14;
+
+  let bgmIndex = 0;
+  let bgmOn = true;
+
+  function bgmStart() {
+    if (!bgmEl || !bgmOn) return;
+    bgmEl.volume = BGM_VOLUME;
+    if (!bgmEl.getAttribute("src")) {
+      bgmEl.src = BGM_TRACKS[bgmIndex];
+    }
+    const task = bgmEl.play();
+    if (task && task.catch) task.catch(function () {});
+  }
+
+  function bgmStop() {
+    if (!bgmEl) return;
+    bgmEl.pause();
+    bgmEl.currentTime = 0;
+  }
+
+  function bgmDuck() {
+    if (!bgmEl) return;
+    bgmEl.volume = BGM_DUCK_VOLUME;
+  }
+
+  function bgmNext() {
+    if (!bgmEl) return;
+    bgmIndex = (bgmIndex + 1) % BGM_TRACKS.length;
+    bgmEl.src = BGM_TRACKS[bgmIndex];
+    if (bgmOn && GAME.state !== "idle") bgmStart();
+  }
+
+  function setBgmOn(value) {
+    bgmOn = Boolean(value);
+    if (bgmEl) {
+      if (!bgmOn) {
+        bgmEl.pause();
+      } else if (GAME.state !== "idle") {
+        bgmStart();
+      }
+    }
+    if (hudMusicEl) {
+      hudMusicEl.textContent = bgmOn ? "音乐 开" : "音乐 关";
+      hudMusicEl.setAttribute("aria-pressed", bgmOn ? "true" : "false");
+      hudMusicEl.classList.toggle("is-off", !bgmOn);
+    }
+  }
 
   function clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
@@ -631,6 +710,8 @@
       let first;
       if (rightDue) first = 1;
       else if (leftDue) first = -1;
+      else if (planFocus === "right") first = 1;
+      else if (planFocus === "left") first = -1;
       else first = GAME.lastGuideDir === 1 ? -1 : 1;
       GAME.guideSeq = [first, 0, -first, 0];
     }
@@ -640,6 +721,26 @@
   function planGuide(now) {
     const elapsed = Math.max(0, now - GAME.roundStart);
     const phase = currentPhase(elapsed);
+
+    // 主训段插入纵向引导：抬头一条、低头一条，热身与放松保持纯左右
+    if (phase.id === "main") {
+      const slot = GAME.verticalPlan.find(function (item) {
+        return !item.done && elapsed >= item.at;
+      });
+      if (slot) {
+        slot.done = true;
+        return {
+          dir: 0,
+          vertical: true,
+          pitchDir: slot.pitchDir,
+          needYaw: 0,
+          phase: phase.id,
+          anchorX: stageBox.w * (0.4 + Math.random() * 0.2),
+          anchorY: stageBox.h * (slot.pitchDir > 0 ? 0.2 : 0.8)
+        };
+      }
+    }
+
     const dir = nextGuideDir();
     const needYaw = dir === 0 ? 0 : phaseYaw(phase);
 
@@ -675,12 +776,25 @@
 
     // 去左边就从左边界外游进来，去右边就从右边界外游进来
     let heading;
-    if (plan.dir < 0) heading = (Math.random() - 0.5) * 0.24;
-    else if (plan.dir > 0) heading = Math.PI + (Math.random() - 0.5) * 0.24;
-    else heading = (Math.random() < 0.5 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.2;
+    let startX;
+    let startY;
 
-    const startX = Math.cos(heading) >= 0 ? -w - 70 : stageBox.w + 70;
-    const startY = plan.anchorY - h / 2 + (Math.random() - 0.5) * 84;
+    if (plan.vertical) {
+      // 纵向鱼斜向入场，不做到垂直：素材是水平朝向的鱼身
+      const fromTop = plan.pitchDir > 0;
+      heading = (fromTop ? 1 : -1) * (Math.PI / 3) + (Math.random() - 0.5) * 0.22;
+      const lane = 0.28 + Math.random() * 0.44;
+      startX = stageBox.w * lane - w / 2;
+      startY = fromTop ? -h - 80 : stageBox.h + 80;
+    } else {
+      // 去左边就从左边界外游进来，去右边就从右边界外游进来
+      if (plan.dir < 0) heading = (Math.random() - 0.5) * 0.24;
+      else if (plan.dir > 0) heading = Math.PI + (Math.random() - 0.5) * 0.24;
+      else heading = (Math.random() < 0.5 ? 0 : Math.PI) + (Math.random() - 0.5) * 0.2;
+
+      startX = Math.cos(heading) >= 0 ? -w - 70 : stageBox.w + 70;
+      startY = plan.anchorY - h / 2 + (Math.random() - 0.5) * 84;
+    }
 
     const vx = Math.cos(heading) * speed;
     const vy = Math.sin(heading) * speed;
@@ -710,6 +824,8 @@
       vy: vy,
       speed: speed,
       dir: plan.dir,
+      vertical: Boolean(plan.vertical),
+      pitchDir: plan.pitchDir || 0,
       needYaw: plan.needYaw,
       phaseId: plan.phase,
       anchorX: plan.anchorX - w / 2,
@@ -943,11 +1059,18 @@
     if (index >= 0) GAME.fishes.splice(index, 1);
 
     releaseActiveFish(fish, false);
+    sfx("eat", value);
   }
 
   function recordTally(fish, yawAbs, needYaw) {
     const tally = GAME.tally;
-    if (fish.dir < 0) {
+    if (fish.vertical) {
+      if (fish.pitchDir > 0) {
+        tally.up += 1;
+      } else {
+        tally.down += 1;
+      }
+    } else if (fish.dir < 0) {
       tally.left += 1;
       tally.leftPeak = Math.max(tally.leftPeak, yawAbs);
     } else if (fish.dir > 0) {
@@ -978,6 +1101,7 @@
     if (count > 0) {
 
       GAME.combo = Math.min(9, GAME.combo + count - 1);
+      sfx("combo", GAME.combo);
       aimBite();
     } else {
       GAME.combo = 1;
@@ -1017,7 +1141,11 @@
     // 角速度安全保护：快速甩头时短暂断开锁定，逼用户慢下来
     if (usePose && fresh && Math.abs(Number(pose.yawRate) || 0) > GUIDE.maxYawRate) {
       GAME.speedGuardUntil = now + 500;
-      if (now - GAME.lastSpeedWarnAt > 1500) GAME.lastSpeedWarnAt = now;
+      if (now - GAME.lastSpeedWarnAt > 1500) {
+        GAME.lastSpeedWarnAt = now;
+        sfx("slow");
+        showGameToast("慢一点", "转头太快了，稳住再转");
+      }
     }
     const speeding = now - GAME.lastSpeedWarnAt < 1200;
 
@@ -1109,6 +1237,7 @@
       if (hit !== fish.locked) {
         fish.locked = hit;
         fish.el.classList.toggle("is-locked", hit);
+        if (hit) sfx("lock");
       }
       if (hit) {
         fish.lockedAt = now;
@@ -1200,6 +1329,27 @@
     GAME.cueEl = null;
   }
 
+  let gameToastTimer = 0;
+
+  function showGameToast(title, detail) {
+    if (!gameToastEl || !gameToastTitleEl || !gameToastDetailEl) return;
+    gameToastTitleEl.textContent = title;
+    gameToastDetailEl.textContent = detail;
+    gameToastEl.classList.remove("is-visible");
+    void gameToastEl.offsetWidth;
+    gameToastEl.classList.add("is-visible");
+    if (gameToastTimer) window.clearTimeout(gameToastTimer);
+    gameToastTimer = window.setTimeout(function () {
+      gameToastEl.classList.remove("is-visible");
+    }, 1600);
+  }
+
+  function hideGameToast() {
+    if (gameToastTimer) window.clearTimeout(gameToastTimer);
+    gameToastTimer = 0;
+    if (gameToastEl) gameToastEl.classList.remove("is-visible");
+  }
+
   /* ---------- 90 秒训练进程 ---------- */
 
   function updateRound(now) {
@@ -1244,6 +1394,8 @@
 
   function endRound() {
     GAME.state = "roundEnd";
+    sfx("roundEnd");
+    bgmDuck();
     GAME.pendingGuide = null;
     hideCue();
     clearGameFish();
@@ -1258,6 +1410,12 @@
   }
 
   function renderRoundSummary() {
+    if (roundEyebrowEl) {
+      roundEyebrowEl.textContent = planNote
+        ? "本组 90 秒完成 · " + planNote
+        : "本组 90 秒完成";
+    }
+
     const tally = GAME.tally;
     const total = tally.left + tally.right;
     const diff = Math.abs(tally.left - tally.right);
@@ -1278,10 +1436,115 @@
       balance = tally.left > tally.right ? "右侧偏少 · 下一组补做右边" : "左侧偏少 · 下一组补做左边";
     }
 
+    if (tally.up || tally.down) {
+      balance += " · 上仰 " + tally.up + " 次 / 低头 " + tally.down + " 次";
+    }
+
     if (roundBalanceEl) {
       roundBalanceEl.textContent = balance;
       roundBalanceEl.classList.toggle("is-warn", warn);
     }
+
+    requestAiReview(tally);
+  }
+
+  function requestAiReview(tally) {
+    if (!roundAiEl || !roundAiTextEl) return;
+    roundAiEl.hidden = true;
+    roundAiTextEl.textContent = "";
+    if (roundAiTagEl) roundAiTagEl.textContent = "AI 点评";
+
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = controller
+      ? window.setTimeout(function () { controller.abort(); }, 9000)
+      : 0;
+
+    fetch("/api/v1/training/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        left: tally.left,
+        right: tally.right,
+        leftPeak: tally.leftPeak,
+        rightPeak: tally.rightPeak,
+        standard: tally.standard,
+        missed: tally.missed
+      }),
+      signal: controller ? controller.signal : undefined
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data || !data.text) return;
+        if (GAME.state !== "roundEnd") return;
+        if (roundAiTagEl && data.source === "template") {
+          roundAiTagEl.textContent = "训练提示";
+        }
+        roundAiTextEl.textContent = data.text;
+        roundAiEl.hidden = false;
+      })
+      .catch(function () {
+        // 静默回退：保留硬指标，不显示 AI 区
+      })
+      .then(function () {
+        if (timer) window.clearTimeout(timer);
+      });
+  }
+
+  function applyPlan(plan) {
+    if (!plan || !Array.isArray(plan.segments)) return;
+    if (plan.note) planNote = String(plan.note).trim();
+    for (const segment of plan.segments) {
+      const target = GUIDE.phases.find(function (phase) { return phase.id === segment.id; });
+      if (!target) continue;
+      if (Number.isFinite(segment.yaw)) target.yaw = segment.yaw;
+      if (segment.id === "main") {
+        if (segment.focus === "left" || segment.focus === "right") {
+          planFocus = segment.focus;
+        } else {
+          planFocus = "balanced";
+        }
+        if (Number.isFinite(segment.spawnGapMs)) {
+          GUIDE.spawnGapMs = segment.spawnGapMs;
+        }
+      }
+    }
+  }
+
+  function prefetchPlan() {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = controller
+      ? window.setTimeout(function () { controller.abort(); }, 8000)
+      : 0;
+
+    fetch("/api/v1/training/plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        left: GAME.tally.left,
+        right: GAME.tally.right,
+        leftPeak: GAME.tally.leftPeak,
+        rightPeak: GAME.tally.rightPeak,
+        standard: GAME.tally.standard,
+        missed: GAME.tally.missed
+      }),
+      signal: controller ? controller.signal : undefined
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      })
+      .then(function (plan) {
+        applyPlan(plan);
+      })
+      .catch(function () {
+        // 静默回退：保持默认剧本
+      })
+      .then(function () {
+        if (timer) window.clearTimeout(timer);
+      });
   }
 
   function resetRoundState() {
@@ -1296,9 +1559,14 @@
     GAME.speedGuardUntil = 0;
     GAME.lastSpeedWarnAt = 0;
     GAME.lastGuideHudAt = 0;
-    GAME.tally = { left: 0, right: 0, leftPeak: 0, rightPeak: 0, standard: 0, missed: 0 };
+    GAME.tally = { left: 0, right: 0, leftPeak: 0, rightPeak: 0, up: 0, down: 0, standard: 0, missed: 0 };
+    GAME.verticalPlan = GUIDE.vertical.at.map(function (at, index) {
+      return { at: at, pitchDir: index === 0 ? 1 : -1, done: false };
+    });
     hideCue();
+    hideGameToast();
     if (roundEndEl) roundEndEl.hidden = true;
+    if (roundAiEl) roundAiEl.hidden = true;
   }
 
   function updateHud() {
@@ -1377,6 +1645,9 @@
   }
 
   function enterImmersive() {
+    sfx("unlock");
+    sfx("dive");
+    bgmStart();
     GAME.aimRatio = 0.52;
     GAME.aimY = GAME.aimRatio * stageBox.h;
     GAME.aimX = 0;
@@ -1399,6 +1670,7 @@
   }
 
   function exitImmersive() {
+    bgmStop();
     document.body.dataset.mode = "";
     if (hudEl) hudEl.hidden = true;
     if (aimEl) aimEl.classList.remove("is-locked", "is-bite", "is-sucking", "is-guarded");
@@ -1499,16 +1771,46 @@
         GAME.combo > 1
           ? "连击 x" + GAME.combo + " · 空格键也能吃"
           : "鱼游到嘴边时张嘴，或按空格键";
+    } else if (!cameraReady()) {
+      strong.textContent = "点击开启摄像头";
+      small.textContent = "需要授权相机权限，画面不离开本机";
     } else {
       strong.textContent = "张嘴一下，开始互动";
       small.textContent = "或使用空格键确认";
     }
   }
 
+  function cameraReady() {
+    const cam = window.MindFlowCamera;
+    return Boolean(cam && cam.isRunning());
+  }
+
   if (interactionEl) {
     interactionEl.addEventListener("click", function () {
+      if (!cameraReady()) {
+        const toggle = document.getElementById("monitor-toggle");
+        if (toggle) toggle.click();
+        return;
+      }
       faceTrigger();
     });
+  }
+
+  window.addEventListener("mindflow:camera", function (event) {
+    const on = Boolean(event.detail && event.detail.running);
+    if (interactionEl) {
+      if (on) {
+        delete interactionEl.dataset.state;
+      } else {
+        interactionEl.dataset.state = "camera";
+      }
+    }
+    updateInteractionText();
+  });
+
+  if (interactionEl && !cameraReady()) {
+    interactionEl.dataset.state = "camera";
+    updateInteractionText();
   }
 
   window.addEventListener("keydown", function (event) {
@@ -1537,6 +1839,16 @@
     });
   }
 
+  if (hudMusicEl) {
+    hudMusicEl.addEventListener("click", function () {
+      setBgmOn(!bgmOn);
+    });
+  }
+
+  if (bgmEl) {
+    bgmEl.addEventListener("ended", bgmNext);
+  }
+
   if (roundAgainEl) {
     roundAgainEl.addEventListener("click", function () {
       startAgain();
@@ -1558,6 +1870,7 @@
 
   window.MindFlowGame = {
     trigger: faceTrigger,
+    toast: showGameToast,
     task: function () {
       return {
         index: GAME.taskIndex,
@@ -1605,6 +1918,7 @@
   };
 
   updateTaskUI();
+  prefetchPlan();
   /* ================= 互动结束 ================= */
 
   window.addEventListener("resize", resize);
