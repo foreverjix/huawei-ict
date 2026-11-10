@@ -14,3 +14,6 @@ Thumbs.db
 Music/
 src/main/resources/static/assets/audio/
 .trae-html-share-packages/
+check-cloud-data.ps1
+purge-cloud-data.ps1
+secure-redeploy.ps1
