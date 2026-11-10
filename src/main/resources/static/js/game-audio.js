@@ -100,6 +100,54 @@
     source.stop(audio.currentTime + duration);
   }
 
+  function tide() {
+    const audio = ensure();
+    if (!audio || muted) return;
+    const duration = 1.5;
+    const frames = Math.floor(audio.sampleRate * duration);
+    const buffer = audio.createBuffer(1, frames, audio.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let index = 0; index < frames; index += 1) {
+      data[index] = (Math.random() * 2 - 1) * 0.5;
+    }
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    const filter = audio.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 0.8;
+    filter.frequency.setValueAtTime(280, audio.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(1800, audio.currentTime + 0.9);
+    filter.frequency.exponentialRampToValueAtTime(320, audio.currentTime + duration);
+    const gain = audio.createGain();
+    gain.gain.setValueAtTime(0.0001, audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.17, audio.currentTime + 0.26);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + duration);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(master);
+    source.start();
+    source.stop(audio.currentTime + duration);
+
+    tone({ type: "triangle", from: 220, to: 660, duration: 0.9, volume: 0.08 });
+    window.setTimeout(function () {
+      tone({ type: "sine", from: 1320, to: 1760, duration: 0.5, volume: 0.07 });
+    }, 420);
+  }
+
+  function sequenceStep(index) {
+    const lift = Math.min(Math.max(Number(index) || 0, 0), 3);
+    const freq = 540 * Math.pow(2, lift / 12);
+    tone({ type: "triangle", from: freq, to: freq * 1.12, duration: 0.14, volume: 0.1 });
+  }
+
+  function sequenceDone() {
+    [587.33, 739.99, 987.77].forEach(function (freq, index) {
+      window.setTimeout(function () {
+        tone({ type: "triangle", from: freq, to: freq * 1.05, duration: 0.2, volume: 0.1 });
+      }, index * 90);
+    });
+  }
+
   function setMuted(value) {
     muted = Boolean(value);
     if (master) master.gain.value = muted ? 0 : VOLUME;
@@ -113,6 +161,9 @@
     slow: slow,
     roundEnd: roundEnd,
     dive: dive,
+    tide: tide,
+    sequenceStep: sequenceStep,
+    sequenceDone: sequenceDone,
     setMuted: setMuted,
     isMuted: function () {
       return muted;

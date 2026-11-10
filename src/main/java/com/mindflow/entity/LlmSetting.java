@@ -7,14 +7,24 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Entity
 @Table(name = "llm_setting")
 public class LlmSetting {
 
+    private static final AtomicLong ID_SEQ = new AtomicLong(System.currentTimeMillis());
+
     @Id
     @Column(name = "id", nullable = false, updatable = false)
-    private Long id = 1L;
+    private Long id;
+
+    public static long nextId() {
+        return ID_SEQ.incrementAndGet();
+    }
+
+    @Column(name = "visitor_id", length = 36, unique = true)
+    private String visitorId;
 
     @Column(name = "base_url", length = 300, nullable = false)
     private String baseUrl;
@@ -42,6 +52,14 @@ public class LlmSetting {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getVisitorId() {
+        return visitorId;
+    }
+
+    public void setVisitorId(String visitorId) {
+        this.visitorId = visitorId;
     }
 
     public String getBaseUrl() {

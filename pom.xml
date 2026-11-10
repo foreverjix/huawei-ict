@@ -55,6 +55,24 @@
   </dependencies>
 
   <build>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>.env</exclude>
+          <exclude>**/.env</exclude>
+          <exclude>.env.*</exclude>
+          <exclude>**/.env.*</exclude>
+          <exclude>data/**</exclude>
+          <exclude>**/data/**</exclude>
+          <exclude>**/uploads/**</exclude>
+          <exclude>**/*.log</exclude>
+          <exclude>**/*.mv.db</exclude>
+          <exclude>**/*.trace.db</exclude>
+        </excludes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>

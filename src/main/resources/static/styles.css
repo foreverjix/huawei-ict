@@ -52,6 +52,24 @@ button {
     radial-gradient(120% 82% at 50% -12%, #22557a 0%, #12395c 26%, #08243d 54%, #041423 76%, #020a13 100%);
 }
 
+body[data-mode="immersive"][data-depth="shallow"] .scene {
+  background:
+    url("assets/mindflow_world_assets/sea_shallow_01.png") center / cover no-repeat,
+    radial-gradient(120% 82% at 50% -12%, #2a6a8f 0%, #16496b 28%, #0a2a45 58%, #041423 82%, #020a13 100%);
+}
+
+body[data-mode="immersive"][data-depth="middle"] .scene {
+  background:
+    url("assets/mindflow_world_assets/sea_middle_01.png") center / cover no-repeat,
+    radial-gradient(120% 82% at 50% -12%, #1d547a 0%, #123d5c 30%, #08243d 60%, #03101e 84%, #020a13 100%);
+}
+
+body[data-mode="immersive"][data-depth="deep"] .scene {
+  background:
+    url("assets/mindflow_world_assets/sea_deep_01.png") center / cover no-repeat,
+    radial-gradient(120% 82% at 50% -12%, #103a5a 0%, #0a2944 34%, #051a30 64%, #020c17 86%, #01060c 100%);
+}
+
 .scene::before {
   content: "";
   position: absolute;
@@ -260,11 +278,11 @@ button {
   isolation: isolate;
   background-color: rgba(6, 20, 36, 0.18);
   background-image: linear-gradient(155deg, rgba(120, 195, 255, 0.1), rgba(4, 14, 26, 0.1));
-  border: 1px solid rgba(168, 230, 255, 0.16);
+  border: 1px solid rgba(150, 215, 255, 0.11);
   box-shadow:
     0 28px 60px -28px rgba(0, 0, 0, 0.8),
-    inset 0 1px 1px rgba(255, 255, 255, 0.2),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.06);
+    inset 0 1px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.05);
 }
 
 .lg-refract {
@@ -295,6 +313,12 @@ button {
   position: absolute;
   background-color: #04101d;
   background-image:
+    /* 近似 #water-light 与 .caustics：真实背景在底图之上还有动画光带与焦散，
+       采样层若只有底图，面板边缘会与周围背景产生色差、出现双重边缘 */
+    radial-gradient(85% 55% at 50% 16%, rgba(120, 200, 255, 0.08), transparent 62%),
+    radial-gradient(42% 26% at 22% 26%, rgba(120, 216, 255, 0.1), transparent 68%),
+    radial-gradient(36% 22% at 74% 18%, rgba(160, 232, 255, 0.08), transparent 70%),
+    radial-gradient(50% 28% at 52% 62%, rgba(70, 178, 255, 0.06), transparent 72%),
     radial-gradient(60% 42% at 50% 34%, rgba(0, 150, 220, 0.1), transparent 72%),
     radial-gradient(95% 70% at 50% 106%, rgba(0, 0, 0, 0.78), transparent 64%),
     linear-gradient(180deg, rgba(3, 16, 30, 0.46), rgba(2, 10, 18, 0.7) 55%, rgba(1, 7, 13, 0.88)),
@@ -304,6 +328,24 @@ button {
   background-position: center;
   background-repeat: no-repeat;
   transform: translateZ(0);
+}
+
+/* 指针跟随的镜面反光：液态玻璃在光标下应有柔和亮斑 */
+.lg-shine {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--lg-hover, 0);
+  transition: opacity 0.45s ease;
+  background: radial-gradient(
+    300px circle at var(--lg-px, 50%) var(--lg-py, 30%),
+    rgba(175, 238, 255, 0.13),
+    rgba(140, 220, 255, 0.04) 46%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
 }
 
 .sidebar.liquid {
@@ -761,6 +803,23 @@ button {
   height: 3px;
 }
 
+.fish.is-booting {
+  opacity: 0;
+}
+
+.fish-stage.is-assets-ready .fish.is-booting {
+  opacity: 1;
+  transition: opacity 0.7s ease;
+}
+
+.fish-stage.is-assets-ready .fish--blue.is-booting {
+  opacity: 0.97;
+}
+
+.fish-stage.is-assets-ready .fish--far.is-booting {
+  opacity: 0.82;
+}
+
 .fish__glow {
   position: absolute;
   left: 50%;
@@ -1171,6 +1230,67 @@ button {
   font-style: normal;
   letter-spacing: 0.06em;
   color: var(--text-mute);
+}
+
+.depth-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border-radius: 15px;
+  border: 1px solid rgba(120, 200, 255, 0.14);
+  background:
+    radial-gradient(90% 140% at 10% 0%, rgba(80, 200, 255, 0.1), transparent 60%),
+    linear-gradient(135deg, rgba(20, 62, 92, 0.32), rgba(8, 24, 44, 0.42));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.depth-profile__badge {
+  width: 62px;
+  height: 62px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 14px rgba(90, 220, 255, 0.35));
+}
+
+.depth-profile__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.depth-profile__body b {
+  font-size: 12.5px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: #eaf9ff;
+}
+
+.depth-profile__body span {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-mute);
+}
+
+.depth-profile__bar {
+  height: 4px;
+  margin-top: 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(120, 200, 255, 0.12);
+}
+
+.depth-profile__bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #56e0ff, #9fffe8);
+  box-shadow: 0 0 10px rgba(90, 240, 220, 0.6);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .badge {
@@ -2171,35 +2291,55 @@ body[data-mode="immersive"] .game-aim {
 
 .game-hud {
   position: absolute;
-  top: 22px;
-  left: 50%;
+  inset: 0;
   z-index: 7;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  padding: 11px 22px 13px;
-  border-radius: 22px;
-  border: 1px solid rgba(120, 230, 255, 0.16);
-  background: rgba(4, 16, 28, 0.62);
-  box-shadow: 0 22px 44px -24px rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  transform: translateX(-50%);
-  animation: floatUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  pointer-events: none;
+  animation: hudFade 0.5s ease both;
 }
 
 .game-hud[hidden] {
   display: none;
 }
 
-.game-hud__stats {
+.hud-corner {
+  position: absolute;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  font-size: 13px;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   color: #cfeaff;
+  text-shadow: 0 0 14px rgba(0, 170, 240, 0.35);
+}
+
+.hud-corner--tl {
+  top: 22px;
+  left: 28px;
+  align-items: flex-start;
+}
+
+.hud-corner--tr {
+  top: 22px;
+  right: 28px;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.hud-corner--bl {
+  bottom: 22px;
+  left: 28px;
+  align-items: flex-start;
+}
+
+.hud-corner--br {
+  bottom: 22px;
+  right: 28px;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+.game-hud__score {
+  font-size: 13px;
 }
 
 .game-hud__score b {
@@ -2209,13 +2349,14 @@ body[data-mode="immersive"] .game-aim {
 }
 
 .game-hud__combo {
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 255, 190, 0.24);
-  background: rgba(0, 255, 190, 0.08);
   font-size: 11px;
   letter-spacing: 0.03em;
   color: #9fe8c6;
+  font-variant-numeric: tabular-nums;
+}
+
+.game-hud__combo.is-hot {
+  color: #ffd98a;
 }
 
 .card--task .badge.is-done {
@@ -2224,90 +2365,50 @@ body[data-mode="immersive"] .game-aim {
   background: rgba(61, 220, 151, 0.12);
 }
 
-.game-hud__task {
-  padding: 3px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(120, 230, 255, 0.18);
-  background: rgba(0, 160, 220, 0.1);
-  font-size: 11.5px;
-  letter-spacing: 0.03em;
-  color: #b6e4ff;
-  font-variant-numeric: tabular-nums;
-}
-
-.game-hud__combo.is-hot {
-  border-color: rgba(255, 214, 120, 0.5);
-  background: rgba(255, 196, 90, 0.14);
-  color: #ffd98a;
-}
-
 .game-hud__hint {
   font-size: 10.5px;
   letter-spacing: 0.03em;
   color: var(--text-mute);
 }
 
-.game-hud__actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 1px;
-}
-
-.game-hud__actions .game-hud__exit {
-  margin-top: 0;
-}
-
 .game-hud__music {
-  padding: 6px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(140, 235, 255, 0.26);
-  background: rgba(60, 160, 220, 0.12);
+  background: none;
+  border: 0;
+  padding: 0;
   font-size: 11px;
   letter-spacing: 0.03em;
   color: #bfeeff;
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  text-shadow: 0 0 12px rgba(0, 190, 255, 0.4);
+  transition: color 0.2s ease;
 }
 
 .game-hud__music:hover {
-  border-color: rgba(150, 245, 255, 0.5);
-  background: rgba(60, 160, 220, 0.2);
   color: #eaffff;
 }
 
 .game-hud__music.is-off {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
   color: var(--text-dim);
 }
 
 .game-hud__exit {
-  margin-top: 1px;
-  padding: 6px 16px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.05);
+  background: none;
+  border: 0;
+  padding: 0;
   font-size: 11px;
   letter-spacing: 0.03em;
   color: var(--text-dim);
   cursor: pointer;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  transition: color 0.2s ease;
 }
 
 .game-hud__exit:hover {
-  border-color: rgba(120, 230, 255, 0.4);
   color: #dff8ff;
 }
 
 /* ---- 引导 HUD：阶段、目标方向、实时角度 ---- */
 
 .game-hud__phase {
-  padding: 3px 9px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 214, 120, 0.24);
-  background: rgba(255, 190, 80, 0.08);
   font-size: 11px;
   letter-spacing: 0.03em;
   color: #ffd98a;
@@ -2334,16 +2435,11 @@ body[data-mode="immersive"] .game-aim {
 }
 
 .game-hud__bar {
-  width: 226px;
+  width: 120px;
   height: 3px;
   border-radius: 999px;
   overflow: hidden;
-  background: linear-gradient(
-    90deg,
-    rgba(120, 230, 255, 0.16) 0 16.7%,
-    rgba(255, 196, 90, 0.16) 16.7% 72.2%,
-    rgba(120, 240, 200, 0.16) 72.2% 100%
-  );
+  background: rgba(120, 230, 255, 0.16);
 }
 
 .game-hud__bar-fill {
@@ -2354,6 +2450,45 @@ body[data-mode="immersive"] .game-aim {
   background: linear-gradient(90deg, rgba(140, 245, 255, 0.9), rgba(255, 214, 120, 0.92));
   box-shadow: 0 0 10px rgba(160, 240, 255, 0.55);
   transition: width 0.3s linear;
+}
+
+@keyframes hudFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.score-pop {
+  position: absolute;
+  z-index: 6;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #9ff7d2;
+  text-shadow: 0 0 14px rgba(90, 240, 200, 0.65);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: scoreFloat 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes scoreFloat {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  25% {
+    opacity: 1;
+    transform: translate(-50%, -70%) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(0.95);
+  }
 }
 
 /* ---- 出鱼方向预告：目标侧透出一道潮汐光带 ---- */
@@ -2372,6 +2507,88 @@ body[data-mode="immersive"] .game-aim {
 
 .fish-cue--left {
   left: 11%;
+}
+
+/* ---- 洋流跟随：S 形光带 + 领航鱼 ---- */
+.current-ribbon {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.current-ribbon__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.current-ribbon__guide {
+  fill: none;
+  stroke: rgba(90, 220, 255, 0.16);
+  stroke-width: 1.2;
+  stroke-dasharray: 7 12;
+  animation: ribbonFlow 2.6s linear infinite;
+}
+
+.current-ribbon__trail {
+  fill: none;
+  stroke: rgba(140, 255, 235, 0.75);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 8px rgba(90, 240, 220, 0.8));
+}
+
+.current-ribbon__leader {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #ffffff 0%,
+    #9fffe8 42%,
+    rgba(80, 240, 220, 0.18) 68%,
+    transparent 72%
+  );
+  box-shadow: 0 0 22px rgba(90, 255, 230, 0.75);
+}
+
+@keyframes ribbonFlow {
+  to {
+    stroke-dashoffset: -38;
+  }
+}
+
+.score-pop--combo {
+  z-index: 80;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffe28a;
+  text-shadow:
+    0 0 10px rgba(255, 200, 90, 0.8),
+    0 0 26px rgba(255, 160, 60, 0.45);
+  animation: scoreComboFloat 0.95s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes scoreComboFloat {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.7);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -75%) scale(1.16);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -150%) scale(1.02);
+  }
 }
 
 .fish-cue--right {
@@ -2650,6 +2867,136 @@ body[data-mode="immersive"] .game-aim {
   }
 }
 
+.game-progress {
+  position: absolute;
+  left: 28px;
+  bottom: 58px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  pointer-events: none;
+}
+
+.game-progress[hidden] {
+  display: none;
+}
+
+.game-progress__label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(200, 240, 255, 0.78);
+  text-shadow: 0 0 12px rgba(0, 180, 255, 0.35);
+}
+
+.game-progress__track {
+  width: 180px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(120, 230, 255, 0.14);
+  overflow: hidden;
+}
+
+.game-progress__fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(120, 245, 255, 0.9), rgba(255, 214, 120, 0.92));
+  box-shadow: 0 0 12px rgba(140, 240, 255, 0.55);
+  transition: width 0.32s ease;
+}
+
+.game-progress__fill.is-full {
+  box-shadow: 0 0 18px rgba(255, 214, 120, 0.9);
+  animation: progressPulse 0.6s ease-out;
+}
+
+.game-progress__drops {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-progress__drops[hidden] {
+  display: none;
+}
+
+.game-drop {
+  width: 7px;
+  height: 7px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 1px solid rgba(120, 230, 255, 0.35);
+  background: rgba(120, 230, 255, 0.12);
+  transition: background 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+}
+
+.game-drop.is-collected {
+  border-color: rgba(160, 245, 255, 0.85);
+  background: linear-gradient(160deg, #9df7ff, #27b6e8);
+  box-shadow: 0 0 10px rgba(80, 220, 255, 0.75);
+}
+
+@keyframes progressPulse {
+  0% {
+    filter: brightness(1);
+  }
+  40% {
+    filter: brightness(1.7);
+  }
+  100% {
+    filter: brightness(1);
+  }
+}
+
+.praise {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  z-index: 131;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%) scale(0.94);
+  opacity: 0;
+  pointer-events: none;
+  text-align: center;
+  transition: opacity 0.24s ease, transform 0.24s ease;
+}
+
+.praise.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.praise__text {
+  font-size: clamp(30px, 4.2vw, 46px);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: #eafcff;
+  text-shadow: 0 0 22px rgba(0, 229, 255, 0.55), 0 0 54px rgba(0, 229, 255, 0.28);
+}
+
+.praise__sub {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: rgba(200, 238, 255, 0.72);
+  text-shadow: 0 0 14px rgba(0, 229, 255, 0.3);
+}
+
+.praise.is-warm .praise__text {
+  color: #ffe2b4;
+  text-shadow: 0 0 22px rgba(255, 180, 90, 0.5), 0 0 54px rgba(255, 166, 70, 0.24);
+}
+
+.praise.is-warm .praise__sub {
+  color: rgba(255, 232, 200, 0.75);
+  text-shadow: 0 0 14px rgba(255, 180, 90, 0.24);
+}
+
 .game-toast {
   position: absolute;
   left: 50%;
@@ -2658,14 +3005,7 @@ body[data-mode="immersive"] .game-aim {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 20px 40px 18px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 200, 140, 0.34);
-  background: radial-gradient(circle at 50% 0%, rgba(255, 186, 110, 0.2), rgba(8, 32, 50, 0.5) 72%);
-  box-shadow: 0 18px 60px rgba(0, 12, 24, 0.45), inset 0 1px 0 rgba(255, 240, 220, 0.18);
-  backdrop-filter: blur(18px) saturate(150%);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  gap: 6px;
   opacity: 0;
   pointer-events: none;
   z-index: 130;
@@ -2680,16 +3020,24 @@ body[data-mode="immersive"] .game-aim {
 
 .game-toast__title {
   font-size: clamp(30px, 4.2vw, 46px);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.12em;
-  color: #ffe2b4;
-  text-shadow: 0 0 28px rgba(255, 180, 90, 0.55);
+  color: #0b5f8a;
+  -webkit-text-stroke: 2px rgba(150, 235, 255, 0.78);
+  paint-order: stroke fill;
+  text-shadow:
+    0 1px 0 rgba(2, 34, 56, 0.85),
+    0 4px 0 rgba(2, 28, 46, 0.75),
+    0 0 20px rgba(0, 200, 255, 0.55),
+    0 0 48px rgba(0, 150, 230, 0.28);
+  filter: drop-shadow(0 0 16px rgba(90, 220, 255, 0.35));
 }
 
 .game-toast__detail {
   font-size: 13px;
   letter-spacing: 0.05em;
-  color: rgba(226, 244, 255, 0.88);
+  color: rgba(205, 240, 255, 0.82);
+  text-shadow: 0 0 14px rgba(0, 190, 255, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2729,11 +3077,343 @@ body[data-mode="immersive"] .game-aim {
   }
 }
 
+/* ---- 干扰物：水母 ---- */
+.game-jelly {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+  transition: opacity 0.5s ease, filter 0.3s ease;
+}
+
+.game-jelly.is-ready {
+  opacity: 0.92;
+}
+
+.game-jelly__frames {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  filter: drop-shadow(0 0 24px rgba(120, 235, 255, 0.42));
+}
+
+.game-jelly__frame {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: auto;
+  max-width: none;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  will-change: opacity;
+}
+
+.game-jelly.is-hit {
+  opacity: 0;
+  filter: brightness(1.9) saturate(1.3);
+}
+
+/* ---- 潮汐爆发特效 ---- */
+
+/* 持续张嘴时出现的吸入漩涡：只覆盖准星附近，不做全屏黑幕 */
+.black-hole {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 180px;
+  height: 180px;
+  margin-left: -90px;
+  margin-top: -90px;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.black-hole.is-active {
+  opacity: 1;
+}
+
+.black-hole__core {
+  position: absolute;
+  inset: 30%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    #02070d 0%,
+    #061725 42%,
+    rgba(30, 110, 160, 0.28) 66%,
+    transparent 72%
+  );
+  box-shadow:
+    0 0 34px rgba(60, 190, 255, 0.45),
+    inset 0 0 26px rgba(0, 0, 0, 0.85);
+}
+
+.black-hole__ring {
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  border: 2px solid rgba(120, 235, 255, 0.55);
+  box-shadow:
+    0 0 18px rgba(80, 220, 255, 0.35),
+    inset 0 0 18px rgba(80, 200, 255, 0.2);
+  animation: blackHoleSpin 2.2s linear infinite;
+}
+
+.black-hole__ring:nth-child(2) {
+  inset: 16%;
+  border-color: rgba(255, 210, 130, 0.4);
+  animation-duration: 1.5s;
+  animation-direction: reverse;
+}
+
+.black-hole__ring:nth-child(3) {
+  inset: 26%;
+  border-color: rgba(140, 230, 255, 0.3);
+  animation-duration: 1.1s;
+}
+
+@keyframes blackHoleSpin {
+  to {
+    transform: rotate(360deg) scale(0.94);
+  }
+}
+
+.fish.is-sucked {
+  opacity: 0.4;
+  filter: blur(2px) brightness(1.5);
+}
+.tide-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 78;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.tide-fx__veil {
+  position: absolute;
+  left: -22%;
+  width: 144%;
+  height: 24%;
+  background: url("assets/mindflow_world_assets/tide_surge_01.png") center / 100% 100% no-repeat;
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: tideSweep 2.3s ease-out forwards;
+}
+
+.tide-fx__veil:nth-child(1) {
+  top: 14%;
+}
+
+.tide-fx__veil:nth-child(2) {
+  top: 42%;
+  animation-delay: 0.16s;
+}
+
+.tide-fx__veil:nth-child(3) {
+  top: 70%;
+  animation-delay: 0.32s;
+}
+
+.tide-fx__stream {
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  background: repeating-linear-gradient(
+    100deg,
+    rgba(140, 240, 255, 0) 0 40px,
+    rgba(140, 240, 255, 0.16) 40px 42px,
+    rgba(140, 240, 255, 0) 42px 92px
+  );
+  mix-blend-mode: screen;
+  animation: tideStream 1.1s linear infinite;
+}
+
+@keyframes tideStream {
+  0% {
+    transform: translateX(-92px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.tide-fx__glow {
+  position: absolute;
+  inset: -8%;
+  background: radial-gradient(
+    ellipse at 50% 52%,
+    rgba(140, 240, 255, 0.3),
+    rgba(40, 150, 235, 0.12) 42%,
+    transparent 68%
+  );
+  opacity: 0;
+  animation: tideGlow 2.6s ease-out forwards;
+}
+
+.tide-fx__ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 62vmin;
+  height: 62vmin;
+  border-radius: 50%;
+  border: 2px solid rgba(150, 245, 255, 0.72);
+  box-shadow: 0 0 40px rgba(120, 235, 255, 0.5), inset 0 0 40px rgba(120, 235, 255, 0.22);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2);
+  animation: tideRing 1.5s ease-out forwards;
+}
+
+@keyframes tideSweep {
+  0% {
+    opacity: 0;
+    transform: translateX(-20%) scaleX(0.92);
+  }
+  16% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(20%) scaleX(1.06);
+  }
+}
+
+@keyframes tideGlow {
+  0% {
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes tideRing {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
+  }
+  22% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.7);
+  }
+}
+
+.game-fish.is-tide {
+  filter: drop-shadow(0 0 34px rgba(130, 240, 255, 0.72)) drop-shadow(0 0 62px rgba(255, 205, 110, 0.35));
+}
+
+body[data-tide="on"] .game-aim__ring {
+  border-color: rgba(160, 248, 255, 0.92);
+  box-shadow: 0 0 34px rgba(120, 235, 255, 0.62), inset 0 0 24px rgba(120, 235, 255, 0.34);
+}
+
+/* ---- 顺序连招指示 ---- */
+.tide-seq {
+  position: absolute;
+  left: 50%;
+  top: 25%;
+  z-index: 132;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -6px);
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+
+.tide-seq.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.tide-seq__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.34;
+  filter: grayscale(0.55);
+  transition: opacity 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+}
+
+.tide-seq__step img {
+  display: block;
+  width: 46px;
+  height: 46px;
+}
+
+.tide-seq__step img.is-down {
+  transform: rotate(90deg);
+}
+
+.tide-seq__step img.is-roll-left {
+  transform: rotate(-45deg);
+}
+
+.tide-seq__step img.is-roll-right {
+  transform: rotate(45deg);
+}
+
+.tide-seq__step.is-current {
+  opacity: 1;
+  filter: grayscale(0) drop-shadow(0 0 18px rgba(130, 240, 255, 0.85));
+  transform: scale(1.14);
+}
+
+.tide-seq__step.is-done {
+  opacity: 0.6;
+  filter: grayscale(0) drop-shadow(0 0 10px rgba(255, 210, 130, 0.55));
+}
+
+/* ---- 诱饵鱼：分叉里的干扰项 ---- */
+.fish--decoy .fish__frames {
+  opacity: 0.86;
+  filter: drop-shadow(0 0 20px rgba(150, 190, 255, 0.3)) drop-shadow(0 10px 18px rgba(0, 0, 0, 0.45));
+}
+
+.fish--decoy.is-locked {
+  filter: drop-shadow(0 0 24px rgba(190, 160, 255, 0.7)) brightness(1.15) saturate(1.1);
+}
+
+.fish--decoy.is-locked::after {
+  border-color: rgba(190, 160, 255, 0.7);
+  box-shadow: 0 0 24px rgba(170, 140, 255, 0.45), inset 0 0 20px rgba(170, 140, 255, 0.2);
+}
+
+.fish--decoy.is-eaten {
+  opacity: 0 !important;
+  filter: brightness(0.65) saturate(0.4);
+}
+
+/* ---- 警示：深蓝气泡艺术字 ---- */
+.praise.is-warn .praise__text {
+  color: #bfe4ff;
+  text-shadow: 0 0 22px rgba(70, 150, 255, 0.62), 0 0 54px rgba(40, 120, 255, 0.32);
+}
+
+.praise.is-warn .praise__sub {
+  color: rgba(185, 222, 255, 0.78);
+  text-shadow: 0 0 14px rgba(70, 150, 255, 0.3);
+}
+
 /* ================= 侧边栏演示页 ================= */
 .page-view {
   display: none;
   width: min(980px, 100%);
   max-height: 100%;
+  min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(120, 230, 255, 0.22) transparent;
@@ -2742,6 +3422,7 @@ body[data-mode="immersive"] .game-aim {
 .page-view.is-active {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   animation: viewIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -2760,6 +3441,7 @@ body:not([data-page="home"]) .stage {
 
 .page-view__inner {
   width: min(980px, 100%);
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -2853,6 +3535,11 @@ body:not([data-page="home"]) .stage {
   margin: 0;
   padding: 0;
   list-style: none;
+  max-height: clamp(150px, 26vh, 240px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 230, 255, 0.22) transparent;
 }
 
 .doc-item {
@@ -3028,6 +3715,11 @@ body:not([data-page="home"]) .stage {
   padding: 0;
   display: grid;
   gap: 8px;
+  max-height: clamp(150px, 26vh, 240px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 230, 255, 0.22) transparent;
 }
 
 .doc-task {
@@ -3278,6 +3970,9 @@ body:not([data-page="home"]) .stage {
 }
 
 .doc-analyze__result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 12px;
   max-height: 320px;
   overflow: auto;
@@ -3288,8 +3983,157 @@ body:not([data-page="home"]) .stage {
   font-size: 12.5px;
   line-height: 1.75;
   color: #d6ecf7;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 230, 255, 0.22) transparent;
+}
+
+.doc-fragment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 230, 255, 0.16);
+  background: linear-gradient(160deg, rgba(120, 230, 255, 0.1), rgba(6, 28, 44, 0.22));
+}
+
+.doc-fragment__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-fragment__seq {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: rgba(160, 240, 255, 0.7);
+}
+
+.doc-fragment__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #eafcff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-fragment__state {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 230, 255, 0.24);
+  background: rgba(120, 230, 255, 0.08);
+  font-size: 10px;
+  color: #b6e4ff;
+}
+
+.doc-fragment__text {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #d6ecf7;
+}
+
+.doc-fragment.is-locked {
+  border-style: dashed;
+  border-color: rgba(120, 230, 255, 0.12);
+  background: rgba(6, 28, 44, 0.2);
+}
+
+.doc-fragment.is-locked .doc-fragment__title {
+  color: rgba(214, 236, 247, 0.5);
+}
+
+.doc-fragment.is-locked .doc-fragment__text {
+  color: rgba(214, 236, 247, 0.35);
+}
+
+.doc-fragment.is-collected .doc-fragment__state {
+  border-color: rgba(61, 220, 151, 0.4);
+  background: rgba(61, 220, 151, 0.1);
+  color: #9fe8c6;
+}
+
+.game-hud__fragments {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 214, 130, 0.92);
+}
+
+.fragment-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 20, 34, 0.24);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.fragment-modal[hidden] {
+  display: none;
+}
+
+.fragment-modal__panel {
+  width: min(440px, 100%);
+  padding: 26px 28px 24px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.fragment-modal__eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(160, 240, 255, 0.72);
+}
+
+.fragment-modal__title {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 500;
+  color: #f2fdff;
+}
+
+.fragment-modal__title b {
+  color: #7ff3ff;
+  font-weight: 600;
+}
+
+.fragment-modal__text {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+
+.fragment-modal__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.fragment-modal__btn {
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 230, 255, 0.2);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12.5px;
+  color: #dff8ff;
+  cursor: pointer;
+}
+
+.fragment-modal__btn--primary {
+  border-color: rgba(120, 230, 255, 0.4);
+  background: linear-gradient(160deg, rgba(0, 229, 255, 0.22), rgba(0, 184, 212, 0.12));
+  color: #eafcff;
 }
 
 .doc-analyze__result[hidden] {

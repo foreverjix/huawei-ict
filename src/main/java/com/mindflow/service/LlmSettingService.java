@@ -4,6 +4,8 @@ import com.mindflow.dto.LlmSettingsDto;
 import com.mindflow.dto.LlmSettingsRequest;
 import com.mindflow.entity.LlmSetting;
 import com.mindflow.repository.LlmSettingRepository;
+import com.mindflow.web.LlmKeyContext;
+import com.mindflow.web.VisitorContext;
 import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -14,16 +16,11 @@ import java.time.Instant;
 @Service
 public class LlmSettingService {
 
-    private static final long SETTING_ID = 1L;
-
     @Value("${mindflow.llm.default-base-url:https://api.deepseek.com/v1}")
     private String defaultBaseUrl;
 
     @Value("${mindflow.llm.default-model:deepseek-chat}")
     private String defaultModel;
-
-    @Value("${MINDFLOW_LLM_API_KEY:}")
-    private String envApiKey;
 
     @Resource
     private LlmSettingRepository settingRepository;
@@ -33,24 +30,34 @@ public class LlmSettingService {
 
     @Transactional
     public LlmSetting getEntity() {
-        return settingRepository.findById(SETTING_ID).orElseGet(() -> {
-            LlmSetting setting = new LlmSetting();
-            setting.setId(SETTING_ID);
-            setting.setBaseUrl(defaultBaseUrl);
-            setting.setModel(defaultModel);
-            setting.setSkillCode("summary");
-            setting.setUpdatedAt(Instant.now());
-            return settingRepository.save(setting);
+        String visitorId = VisitorContext.require();
+        LlmSetting setting = settingRepository.findByVisitorId(visitorId).orElseGet(() -> {
+            LlmSetting created = new LlmSetting();
+            created.setId(LlmSetting.nextId());
+            created.setVisitorId(visitorId);
+            created.setBaseUrl(defaultBaseUrl);
+            created.setModel(defaultModel);
+            created.setSkillCode("summary");
+            created.setUpdatedAt(Instant.now());
+            return settingRepository.save(created);
         });
+        // Key 改存浏览器本地，历史库里残留的明文一律抹掉
+        if (setting.getApiKey() != null) {
+            setting.setApiKey(null);
+            setting.setUpdatedAt(Instant.now());
+            settingRepository.save(setting);
+        }
+        return setting;
     }
 
     public LlmSetting effective() {
         LlmSetting source = getEntity();
         LlmSetting copy = new LlmSetting();
         copy.setId(source.getId());
+        copy.setVisitorId(source.getVisitorId());
         copy.setBaseUrl(firstNonBlank(source.getBaseUrl(), defaultBaseUrl));
         copy.setModel(firstNonBlank(source.getModel(), defaultModel));
-        copy.setApiKey(firstNonBlank(source.getApiKey(), envApiKey));
+        copy.setApiKey(LlmKeyContext.get());
         copy.setSkillCode(source.getSkillCode());
         copy.setCustomPrompt(source.getCustomPrompt());
         copy.setUpdatedAt(source.getUpdatedAt());
@@ -95,22 +102,15 @@ public class LlmSettingService {
             setting.setCustomPrompt(request.customPrompt().trim());
         }
 
-        String apiKey = request.apiKey();
-        if (apiKey != null && !apiKey.isBlank()) {
-            if ("__CLEAR__".equals(apiKey.trim())) {
-                setting.setApiKey(null);
-            } else {
-                setting.setApiKey(apiKey.trim());
-            }
-        }
-
+        // API Key 由浏览器本地保存，服务端不再接收、不再落库
+        setting.setApiKey(null);
         setting.setUpdatedAt(Instant.now());
         settingRepository.save(setting);
         return toDto(setting);
     }
 
     public LlmSettingsDto toDto(LlmSetting setting) {
-        String apiKey = setting.getApiKey();
+        String apiKey = LlmKeyContext.get();
         boolean hasApiKey = apiKey != null && !apiKey.isBlank();
         return new LlmSettingsDto(
                 setting.getBaseUrl(),
@@ -118,14 +118,7 @@ public class LlmSettingService {
                 setting.getSkillCode(),
                 setting.getCustomPrompt(),
                 hasApiKey,
-                hasApiKey ? mask(apiKey) : null
+                null
         );
-    }
-
-    private String mask(String apiKey) {
-        if (apiKey.length() <= 8) {
-            return "••••";
-        }
-        return "••••" + apiKey.substring(apiKey.length() - 4);
     }
 }

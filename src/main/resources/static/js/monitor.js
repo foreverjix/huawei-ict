@@ -1,4 +1,4 @@
-import { Camera } from "./camera.js";
+import { Camera } from "./camera.js?v=15";
 import {
   FaceTracker,
   extractFace,
@@ -144,8 +144,17 @@ function boot() {
       startSummaryTimer();
       rafId = requestAnimationFrame(loop);
     } catch (error) {
-      setStatus(error.message || "启动失败", "warn");
-      els.hint.textContent = "请检查摄像头权限或设备占用情况";
+      const cameraStarted = Boolean(camera && camera.stream);
+      if (cameraStarted) {
+        setStatus("识别模型未就绪", "warn");
+        els.hint.textContent = "摄像头已打开，但识别模型没加载成功；请刷新或换 Chrome / Edge 再试";
+        if (camera) camera.stop();
+        camera = null;
+        els.placeholder.hidden = false;
+      } else {
+        setStatus(error.message || "启动失败", "warn");
+        els.hint.textContent = "请检查摄像头权限或设备占用情况";
+      }
       els.toggle.disabled = false;
     }
   }

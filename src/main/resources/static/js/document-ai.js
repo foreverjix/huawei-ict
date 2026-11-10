@@ -1,4 +1,21 @@
 const API = "/api/v1";
+const LLM_KEY_STORAGE = "mindflow.llmKey";
+
+function readLocalLlmKey() {
+  try {
+    return (localStorage.getItem(LLM_KEY_STORAGE) || "").trim();
+  } catch (ignored) {
+    return "";
+  }
+}
+
+function saveLocalLlmKey(value) {
+  try {
+    localStorage.setItem(LLM_KEY_STORAGE, value);
+  } catch (ignored) {
+    // 存储不可用时本次请求仍可用，刷新后需重填
+  }
+}
 
 const els = {
   picker: document.getElementById("doc-picker"),
@@ -45,6 +62,19 @@ let tasks = [];
 let activeTaskId = null;
 let tasksBusy = false;
 
+const ACTIVE_DOC_KEY = "mindflow.activeDoc";
+const DOC_TASK_KEY = "mindflow.docTask";
+const FRAGMENT_KEY = "mindflow.docFragments";
+
+const SKILL_FRAGMENT_LIMIT = {
+  summary: 4,
+  paper_review: 5,
+  key_points: 7,
+  terms: 10,
+  critique: 4,
+  custom: 6
+};
+
 if (els.picker && els.fileInput) {
   boot();
 }
@@ -62,7 +92,24 @@ function boot() {
   if (els.llmTest) els.llmTest.addEventListener("click", testConnection);
   if (els.searchInput) els.searchInput.addEventListener("input", renderDocuments);
 
+  const modal = document.getElementById("fragment-modal");
+  const modalGo = document.getElementById("fragment-modal-go");
+  const modalClose = document.getElementById("fragment-modal-close");
+  if (modalClose && modal) {
+    modalClose.addEventListener("click", function () {
+      modal.hidden = true;
+    });
+  }
+  if (modalGo && modal) {
+    modalGo.addEventListener("click", function () {
+      modal.hidden = true;
+      const nav = document.querySelector('.nav__item[data-view="home"]');
+      if (nav) nav.click();
+    });
+  }
+
   watchPage();
+  preloadFragments();
 
   const page = document.body.dataset.page;
   if (page === "docs" || page === "settings") loadFor(page);
@@ -70,10 +117,26 @@ function boot() {
 
 async function loadFor(page) {
   if (page === "docs") {
-    loadDocuments();
+    await loadDocuments();
     await loadSkills();
+    restoreActiveDoc();
+    const state = readFragments();
+    // 以最近一次分析结果为准：玩完游戏回来必须还能看到收集进度
+    if (state && Array.isArray(state.fragments) && state.fragments.length) {
+      renderFragments(state);
+      updateFragmentStatus(state);
+    } else if (activeDoc) {
+      restoreFragments(activeDoc.id);
+    }
   }
   await loadSettings();
+}
+
+function preloadFragments() {
+  const state = readFragments();
+  if (!state || !Array.isArray(state.fragments) || !state.fragments.length) return;
+  renderFragments(state);
+  updateFragmentStatus(state);
 }
 
 function watchPage() {
@@ -87,7 +150,12 @@ function watchPage() {
 }
 
 async function api(path, options) {
-  const response = await fetch(API + path, options || {});
+  const opts = Object.assign({}, options || {});
+  const headers = Object.assign({}, opts.headers || {});
+  const apiKey = readLocalLlmKey();
+  if (apiKey) headers["X-Llm-Api-Key"] = apiKey;
+  opts.headers = headers;
+  const response = await fetch(API + path, opts);
   if (!response.ok) {
     let message = "HTTP " + response.status;
     try {
@@ -119,6 +187,7 @@ async function uploadFile(file) {
     const doc = await api("/documents", { method: "POST", body: form });
     documents.unshift(doc);
     activeDoc = doc;
+    persistActiveDoc(doc);
     documentsLoaded = true;
     documentsError = false;
     renderDocuments();
@@ -161,11 +230,11 @@ async function analyze() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ skillCode: skillCode })
     });
-    setAnalyzeState("分析完成", "ok");
-    els.analyzeHint.textContent =
-      (result.skillName || "分析") + " · " + result.model + " · "
-      + (result.durationMs / 1000).toFixed(1) + " 秒";
-    showResult(result.result || "");
+    const state = buildFragmentState(activeDoc, skillCode, result);
+    saveFragments(state);
+    renderFragments(state);
+    updateFragmentStatus(state);
+    scheduleFragmentModal(state.fragments.length);
   } catch (error) {
     setAnalyzeState("分析失败", "warn");
     els.analyzeHint.textContent = friendlyError(error);
@@ -181,6 +250,7 @@ async function loadDocuments(force) {
     documentsLoaded = true;
     documentsError = false;
     renderDocuments();
+    restoreActiveDoc();
   } catch (error) {
     // 后端未启动时静默，文件名回显仍然可用
     documentsError = true;
@@ -225,10 +295,11 @@ function applySettings() {
     els.llmSkill.value = settings.skillCode;
     els.docSkill.value = settings.skillCode;
   }
-  setConnectionState(settings.hasApiKey);
-  els.llmApiKey.placeholder = settings.hasApiKey
-    ? "已保存 " + settings.apiKeyHint + "，留空不修改"
-    : "请输入 API Key";
+  const localKey = readLocalLlmKey();
+  setConnectionState(Boolean(settings.hasApiKey || localKey));
+  els.llmApiKey.placeholder = localKey
+    ? "已保存在本机，留空不修改"
+    : "请输入 API Key（只保存在本机）";
   els.llmApiKey.value = "";
 }
 
@@ -246,7 +317,7 @@ async function saveSettings() {
     customPrompt: els.llmPrompt.value
   };
   const apiKey = els.llmApiKey.value.trim();
-  if (apiKey) payload.apiKey = apiKey;
+  if (apiKey) saveLocalLlmKey(apiKey);
 
   els.llmSave.disabled = true;
   setMessage("保存中…", "busy");
@@ -258,7 +329,7 @@ async function saveSettings() {
     });
     settingsLoaded = true;
     applySettings();
-    setMessage("已保存", "ok");
+    setMessage(apiKey ? "已保存，Key 只存在这台浏览器" : "已保存", "ok");
   } catch (error) {
     setMessage(friendlyError(error), "warn");
   } finally {
@@ -341,6 +412,7 @@ function renderDocuments() {
 
 function selectDocument(doc) {
   activeDoc = doc;
+  persistActiveDoc(doc);
   setPickerName(doc.name);
   renderDocuments();
   updateActiveDoc();
@@ -350,6 +422,7 @@ function selectDocument(doc) {
     : "该文档没有提取到文本，无法分析。";
   loadTasks(doc.id);
   showResult("");
+  restoreFragments(doc.id);
 }
 
 function setPickerName(name) {
@@ -426,6 +499,301 @@ function friendlyError(error) {
   if (!error.status) return "后端未连接，请用 Spring Boot 启动 8080 后重试";
   return error.message;
 }
+function readFragments() {
+  try {
+    const raw = localStorage.getItem(FRAGMENT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (ignored) {
+    return null;
+  }
+}
+
+function saveFragments(state) {
+  try {
+    localStorage.setItem(FRAGMENT_KEY, JSON.stringify(state));
+  } catch (ignored) {
+    // 存储不可用时当前页仍可展示，刷新后需重新分析
+  }
+}
+
+function normalizeFragmentText(text) {
+  return String(text || "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/^#{1,4}\s+/gm, "")
+    .replace(/^[-*]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function splitFragments(text, skillCode) {
+  const limit = SKILL_FRAGMENT_LIMIT[skillCode] || 6;
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  const blocks = [];
+  let current = null;
+
+  function flush() {
+    if (current && normalizeFragmentText(current.text)) {
+      blocks.push({
+        title: normalizeFragmentText(current.title).slice(0, 16),
+        text: normalizeFragmentText(current.text)
+      });
+    }
+    current = null;
+  }
+
+  lines.forEach(function (raw) {
+    const line = raw.trim();
+    if (!line) {
+      flush();
+      return;
+    }
+
+    const heading = line.match(/^\*\*(.+?)\*\*\s*[:：]?\s*(.*)$/) || line.match(/^#{1,4}\s+(.+)$/);
+    const bullet = line.match(/^([-*]|\d+[.、)])\s+(.+)$/);
+
+    if (heading) {
+      flush();
+      current = { title: heading[1], text: heading[2] || "" };
+      return;
+    }
+    if (bullet) {
+      flush();
+      current = { title: "", text: bullet[2] };
+      return;
+    }
+    if (current) {
+      current.text += (current.text ? " " : "") + line;
+    } else {
+      current = { title: "", text: line };
+    }
+  });
+  flush();
+
+  if (blocks.length < 2) {
+    const sentences = String(text || "").split(/(?<=[。！？.!?])\s*/).filter(Boolean);
+    if (sentences.length >= 2) {
+      blocks.length = 0;
+      sentences.forEach(function (sentence) {
+        blocks.push({ title: "", text: normalizeFragmentText(sentence) });
+      });
+    }
+  }
+  if (!blocks.length) {
+    blocks.push({ title: "分析结果", text: normalizeFragmentText(text) || "模型没有返回可展示的内容" });
+  }
+  while (blocks.length > limit) {
+    const last = blocks.pop();
+    blocks[blocks.length - 1].text += " " + last.text;
+  }
+
+  return blocks.map(function (block, index) {
+    return {
+      index: index,
+      title: block.title || ("第 " + (index + 1) + " 块"),
+      text: block.text
+    };
+  });
+}
+
+function buildFragmentState(doc, skillCode, result) {
+  return {
+    documentId: doc ? doc.id : "",
+    documentName: doc ? doc.name : "",
+    skillCode: skillCode,
+    skillName: result.skillName || "分析",
+    model: result.model || "",
+    createdAt: Date.now(),
+    fragments: splitFragments(result.result, skillCode),
+    collected: []
+  };
+}
+
+function renderFragments(state) {
+  const root = els.analyzeResult;
+  if (!root) return;
+  if (!state || !Array.isArray(state.fragments) || !state.fragments.length) {
+    root.hidden = true;
+    root.textContent = "";
+    return;
+  }
+
+  root.hidden = false;
+  root.textContent = "";
+  const collected = new Set(state.collected || []);
+
+  state.fragments.forEach(function (fragment) {
+    const done = collected.has(fragment.index);
+    const item = document.createElement("article");
+    item.className = "doc-fragment" + (done ? " is-collected" : " is-locked");
+
+    const head = document.createElement("div");
+    head.className = "doc-fragment__head";
+
+    const seq = document.createElement("span");
+    seq.className = "doc-fragment__seq";
+    seq.textContent = String(fragment.index + 1).padStart(2, "0");
+
+    const title = document.createElement("b");
+    title.className = "doc-fragment__title";
+    title.textContent = fragment.title || ("第 " + (fragment.index + 1) + " 块");
+
+    const tag = document.createElement("span");
+    tag.className = "doc-fragment__state";
+    tag.textContent = done ? "已收集" : "待收集";
+
+    const body = document.createElement("p");
+    body.className = "doc-fragment__text";
+    body.textContent = done ? fragment.text : "下潜后吃金色任务鱼收集这一块";
+
+    head.appendChild(seq);
+    head.appendChild(title);
+    head.appendChild(tag);
+    item.appendChild(head);
+    item.appendChild(body);
+    root.appendChild(item);
+  });
+}
+
+function updateFragmentStatus(state) {
+  if (!state) return;
+  const collected = (state.collected || []).length;
+  const total = state.fragments.length;
+  setAnalyzeState("分析完成 · " + collected + "/" + total, "ok");
+  els.analyzeHint.textContent = (state.skillName || "分析")
+    + " · 拆成 " + total + " 块 · 已收集 " + collected + " 块"
+    + (collected < total ? "，去首页下潜补齐" : "，可整理成完整结果")
+    + (state.model === "local" ? "（未配置 Key，本次为本地分段）" : "");
+}
+
+function restoreFragments(documentId) {
+  const state = readFragments();
+  if (!state || String(state.documentId) !== String(documentId)) {
+    renderFragments(null);
+    return;
+  }
+  renderFragments(state);
+  updateFragmentStatus(state);
+}
+
+let fragmentModalTimer = 0;
+
+function scheduleFragmentModal(count) {
+  const modal = document.getElementById("fragment-modal");
+  const countEl = document.getElementById("fragment-modal-count");
+  if (!modal) return;
+  if (countEl) countEl.textContent = String(count);
+  if (fragmentModalTimer) window.clearTimeout(fragmentModalTimer);
+  fragmentModalTimer = window.setTimeout(function () {
+    if (document.body.dataset.page !== "docs") return;
+    modal.hidden = false;
+  }, 600);
+}
+
+window.addEventListener("mindflow:fragment-collected", function (event) {
+  const detail = event.detail || {};
+  const state = readFragments();
+  if (!state || state.documentId !== detail.documentId) return;
+  renderFragments(state);
+  updateFragmentStatus(state);
+});
+
+function persistActiveDoc(doc) {
+  if (!doc || !doc.id) return;
+  try {
+    localStorage.setItem(ACTIVE_DOC_KEY, JSON.stringify({ id: doc.id, name: doc.name || "" }));
+  } catch (ignored) {
+    // 存储不可用时仅影响下次打开页面后的恢复
+  }
+}
+
+function restoreActiveDoc() {
+  if (activeDoc) return;
+  let stored = null;
+  try {
+    stored = JSON.parse(localStorage.getItem(ACTIVE_DOC_KEY) || "null");
+  } catch (ignored) {
+    return;
+  }
+  if (!stored || !stored.id) return;
+  const doc = documents.find(function (item) { return item.id === stored.id; });
+  if (doc) selectDocument(doc);
+}
+
+function taskGoal(chars) {
+  return Math.max(4, Math.min(10, Math.round((Number(chars) || 0) / 120)));
+}
+
+function readStoredDocTask() {
+  try {
+    const raw = localStorage.getItem(DOC_TASK_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (ignored) {
+    return null;
+  }
+}
+
+function publishDocTask(documentId, list) {
+  const items = Array.isArray(list) ? list.slice() : [];
+  const id = documentId || (activeDoc && activeDoc.id) || "";
+  const documentName = activeDoc ? activeDoc.name || "" : "";
+  let payload;
+
+  if (items.length === 0) {
+    payload = {
+      status: "none",
+      documentId: id,
+      documentName: documentName,
+      total: 0,
+      completed: 0,
+      eaten: 0
+    };
+  } else {
+    const pending = items
+      .filter(function (task) { return task.status !== "DONE"; })
+      .sort(function (a, b) { return a.seq - b.seq; })[0];
+    const completed = items.filter(function (task) { return task.status === "DONE"; }).length;
+
+    if (!pending) {
+      payload = {
+        status: "done",
+        documentId: id,
+        documentName: documentName,
+        total: items.length,
+        completed: completed,
+        eaten: 0
+      };
+    } else {
+      const previous = readStoredDocTask();
+      const eaten = previous && previous.status === "active"
+        && previous.documentId === id
+        && previous.seq === pending.seq
+        ? Math.max(0, Number(previous.eaten) || 0)
+        : 0;
+
+      payload = {
+        status: "active",
+        documentId: id,
+        documentName: documentName,
+        seq: pending.seq,
+        title: pending.title || ("第 " + pending.seq + " 段"),
+        summary: pending.summary || "",
+        chars: pending.chars || 0,
+        goal: taskGoal(pending.chars),
+        eaten: eaten,
+        total: items.length,
+        completed: completed
+      };
+    }
+  }
+
+  try {
+    localStorage.setItem(DOC_TASK_KEY, JSON.stringify(payload));
+  } catch (ignored) {
+    // 存储不可用时仍通过事件同步当前页
+  }
+  window.dispatchEvent(new CustomEvent("mindflow:doc-task", { detail: payload }));
+}
+
 async function loadTasks(documentId) {
   if (!els.tasksRoot || !documentId) return;
   els.tasksRoot.hidden = false;
@@ -454,6 +822,7 @@ function renderTasks(data) {
   if (total === 0) {
     els.tasksGenerate.hidden = false;
     els.tasksProgress.textContent = "尚未生成";
+    publishDocTask((data && data.documentId) || (activeDoc && activeDoc.id), list);
     return;
   }
   els.tasksGenerate.hidden = true;
@@ -499,6 +868,7 @@ function renderTasks(data) {
 
     els.tasksList.appendChild(item);
   });
+  publishDocTask((data && data.documentId) || (activeDoc && activeDoc.id), list);
 }
 
 async function generateTasks() {

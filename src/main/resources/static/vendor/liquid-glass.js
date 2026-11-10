@@ -148,12 +148,73 @@
     return wrap;
   }
 
+  // ---- 指针跟随高光：液态玻璃在手指下应有反光响应 ----
+
+  var canHover =
+    window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+  function bindShine(el) {
+    if (!canHover) return null;
+
+    var frame = 0;
+    var lastX = 0;
+    var lastY = 0;
+
+    function apply() {
+      frame = 0;
+      var rect = el.getBoundingClientRect();
+      if (rect.width < 2 || rect.height < 2) return;
+      el.style.setProperty('--lg-px', (((lastX - rect.left) / rect.width) * 100).toFixed(2) + '%');
+      el.style.setProperty('--lg-py', (((lastY - rect.top) / rect.height) * 100).toFixed(2) + '%');
+    }
+
+    function onMove(event) {
+      lastX = event.clientX;
+      lastY = event.clientY;
+      if (!frame) frame = window.requestAnimationFrame(apply);
+    }
+    function onEnter() {
+      el.style.setProperty('--lg-hover', '1');
+    }
+    function onLeave() {
+      el.style.setProperty('--lg-hover', '0');
+    }
+
+    el.addEventListener('pointerenter', onEnter);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerleave', onLeave);
+
+    return function unbind() {
+      if (frame) window.cancelAnimationFrame(frame);
+      el.removeEventListener('pointerenter', onEnter);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerleave', onLeave);
+    };
+  }
+
+  function ensureShine(el) {
+    var shine = el.querySelector(':scope > .lg-shine');
+    if (!shine) {
+      shine = document.createElement('div');
+      shine.className = 'lg-shine';
+      shine.setAttribute('aria-hidden', 'true');
+      el.insertBefore(shine, el.firstChild);
+    }
+    return shine;
+  }
+
   function detach(el) {
     var record = registry.get(el);
     if (!record) return;
+    if (record.unbindShine) record.unbindShine();
     if (record.svg && record.svg.parentNode) record.svg.parentNode.removeChild(record.svg);
     var wrap = el.querySelector(':scope > .lg-refract');
     if (wrap) wrap.parentNode.removeChild(wrap);
+    var shine = el.querySelector(':scope > .lg-shine');
+    if (shine) shine.parentNode.removeChild(shine);
+    el.style.removeProperty('--lg-hover');
+    el.style.removeProperty('--lg-px');
+    el.style.removeProperty('--lg-py');
     el.style.backdropFilter = '';
     el.style.webkitBackdropFilter = '';
     el.classList.remove('liquid');
@@ -232,7 +293,10 @@
       wrap.style.setProperty('--liquid-radius', radius + 'px');
     }
 
-    registry.set(el, { svg: svg, options: opts });
+    ensureShine(el);
+    var unbindShine = bindShine(el);
+
+    registry.set(el, { svg: svg, options: opts, unbindShine: unbindShine });
     return { id: id, svg: svg };
   }
 

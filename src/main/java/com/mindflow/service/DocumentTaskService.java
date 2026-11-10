@@ -10,6 +10,7 @@ import com.mindflow.entity.LlmSetting;
 import com.mindflow.entity.MindflowDocument;
 import com.mindflow.repository.DocumentTaskRepository;
 import com.mindflow.repository.MindflowDocumentRepository;
+import com.mindflow.web.VisitorContext;
 import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -264,7 +265,7 @@ public class DocumentTaskService {
     }
 
     private MindflowDocument requireDocument(String documentId) {
-        return documentRepository.findById(documentId)
+        return documentRepository.findByIdAndOwnerId(documentId, VisitorContext.require())
                 .orElseThrow(() -> new NoSuchElementException("文档不存在: " + documentId));
     }
 

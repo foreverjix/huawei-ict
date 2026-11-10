@@ -36,13 +36,16 @@ export class Camera {
     this.video.muted = true;
     this.video.playsInline = true;
 
-    await new Promise((resolve, reject) => {
+    await new Promise((resolve) => {
       const onReady = () => {
         this.video.removeEventListener("loadedmetadata", onReady);
         resolve();
       };
       this.video.addEventListener("loadedmetadata", onReady);
-      this.video.play().catch(reject);
+      const playTask = this.video.play();
+      // 自动播放被浏览器策略拒绝不等于摄像头启动失败：
+      // 画面已经在 video 里，后续识别仍可继续；这里只记录不阻断
+      if (playTask && playTask.catch) playTask.catch(function () {});
       setTimeout(resolve, 1500);
     });
 

@@ -8,6 +8,7 @@ import com.mindflow.entity.MindflowDocument;
 import com.mindflow.repository.DocumentAnalysisRepository;
 import com.mindflow.repository.DocumentTaskRepository;
 import com.mindflow.repository.MindflowDocumentRepository;
+import com.mindflow.web.VisitorContext;
 import jakarta.annotation.Resource;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -23,9 +24,11 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +39,12 @@ public class DocumentService {
     private static final Set<String> ALLOWED = Set.of("pdf", "txt", "md", "csv", "json");
     private static final long MAX_BYTES = 25L * 1024 * 1024;
     private static final int MAX_TEXT_CHARS = 200_000;
+    private static final Map<String, Integer> FRAGMENT_LIMITS = Map.of(
+            "summary", 4,
+            "paper_review", 5,
+            "key_points", 7,
+            "terms", 10
+    );
 
     @Resource
     private MindflowDocumentRepository documentRepository;
@@ -91,6 +100,7 @@ public class DocumentService {
 
         MindflowDocument document = new MindflowDocument();
         document.setId(id);
+        document.setOwnerId(VisitorContext.require());
         document.setOriginalName(originalName);
         document.setStoredName(storedName);
         document.setContentType(file.getContentType());
@@ -107,7 +117,7 @@ public class DocumentService {
     }
 
     public List<DocumentDto> list() {
-        return documentRepository.findAllByOrderByUploadedAtDesc()
+        return documentRepository.findByOwnerIdOrderByUploadedAtDesc(VisitorContext.require())
                 .stream()
                 .map(this::toDto)
                 .toList();
@@ -115,7 +125,7 @@ public class DocumentService {
 
     @Transactional
     public void delete(String id) {
-        MindflowDocument document = require(id);
+        MindflowDocument document = require(id, VisitorContext.require());
         fileStorageService.delete(document.getStoragePath());
         taskRepository.deleteByDocumentId(id);
         analysisRepository.deleteByDocumentId(id);
@@ -123,7 +133,7 @@ public class DocumentService {
     }
 
     public AnalysisResult analyze(String id, AnalysisRequest request) {
-        MindflowDocument document = require(id);
+        MindflowDocument document = require(id, VisitorContext.require());
         if (document.getTextChars() <= 0 || document.getTextContent() == null
                 || document.getTextContent().isBlank()) {
             throw new IllegalStateException("该文档没有提取到文本，可能是扫描版 PDF 或不支持的内容");
@@ -132,12 +142,18 @@ public class DocumentService {
         String skillCode = request == null ? null : request.skillCode();
         String prompt = request == null ? null : request.prompt();
 
-        LlmAnalysisService.Outcome outcome = llmAnalysisService.analyze(
-                document.getOriginalName(),
-                document.getTextContent(),
-                skillCode,
-                prompt
-        );
+        LlmAnalysisService.Outcome outcome;
+        try {
+            outcome = llmAnalysisService.analyze(
+                    document.getOriginalName(),
+                    document.getTextContent(),
+                    skillCode,
+                    prompt
+            );
+        } catch (RuntimeException exception) {
+            // 模型不可用时静默降级为本地分段，保证「分析 → 弹窗 → 下潜收集」链路不断
+            outcome = localOutcome(document, skillCode);
+        }
 
         DocumentAnalysis analysis = new DocumentAnalysis();
         analysis.setId(UUID.randomUUID().toString());
@@ -153,16 +169,81 @@ public class DocumentService {
         return toResult(analysis);
     }
 
+    private LlmAnalysisService.Outcome localOutcome(MindflowDocument document, String skillCode) {
+        long startedAt = System.currentTimeMillis();
+        String code = skillCode == null || skillCode.isBlank() ? "summary" : skillCode;
+        int limit = FRAGMENT_LIMITS.getOrDefault(code, 6);
+        List<String> blocks = splitLocalText(document.getTextContent(), limit);
+
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < blocks.size(); index++) {
+            builder.append("**第 ").append(index + 1).append(" 段**\n");
+            builder.append(blocks.get(index)).append("\n\n");
+        }
+
+        return new LlmAnalysisService.Outcome(
+                code,
+                "本地分段",
+                "local",
+                builder.toString().trim(),
+                System.currentTimeMillis() - startedAt
+        );
+    }
+
+    private List<String> splitLocalText(String text, int limit) {
+        String normalized = text.replace("\r", "").trim();
+        List<String> units = new ArrayList<>();
+        for (String paragraph : normalized.split("\\n{2,}")) {
+            String clean = paragraph.replaceAll("\\s+", " ").trim();
+            if (clean.isEmpty()) {
+                continue;
+            }
+            if (clean.length() > 220) {
+                for (String sentence : clean.split("(?<=[。！？.!?；;])")) {
+                    String piece = sentence.trim();
+                    if (!piece.isEmpty()) {
+                        units.add(piece);
+                    }
+                }
+            } else {
+                units.add(clean);
+            }
+        }
+        if (units.isEmpty()) {
+            units.add(normalized);
+        }
+
+        int per = Math.max(1, (int) Math.ceil((double) units.size() / limit));
+        List<String> blocks = new ArrayList<>();
+        for (int start = 0; start < units.size() && blocks.size() < limit; start += per) {
+            StringBuilder block = new StringBuilder();
+            for (int cursor = start; cursor < Math.min(units.size(), start + per); cursor++) {
+                if (block.length() > 190) {
+                    break;
+                }
+                if (block.length() > 0) {
+                    block.append(' ');
+                }
+                block.append(units.get(cursor));
+            }
+            blocks.add(block.toString());
+        }
+        if (blocks.isEmpty()) {
+            blocks.add(normalized.length() > 200 ? normalized.substring(0, 200) : normalized);
+        }
+        return blocks;
+    }
+
     public List<AnalysisResult> history(String id) {
-        require(id);
+        require(id, VisitorContext.require());
         return analysisRepository.findByDocumentIdOrderByCreatedAtDesc(id)
                 .stream()
                 .map(this::toResult)
                 .toList();
     }
 
-    private MindflowDocument require(String id) {
-        return documentRepository.findById(id)
+    private MindflowDocument require(String id, String ownerId) {
+        return documentRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new NoSuchElementException("文档不存在: " + id));
     }
 
