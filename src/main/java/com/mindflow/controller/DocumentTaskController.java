@@ -36,4 +36,9 @@ public class DocumentTaskController {
     public DocumentTaskListDto complete(@PathVariable String documentId, @PathVariable String taskId) {
         return taskService.complete(documentId, taskId);
     }
+
+    @PostMapping("/{taskId}/collect")
+    public DocumentTaskListDto collect(@PathVariable String documentId, @PathVariable String taskId) {
+        return taskService.collect(documentId, taskId);
+    }
 }

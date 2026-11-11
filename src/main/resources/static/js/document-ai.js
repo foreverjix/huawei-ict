@@ -47,7 +47,10 @@ const els = {
   tasksReaderTitle: document.getElementById("doc-tasks-reader-title"),
   tasksReaderText: document.getElementById("doc-tasks-reader-text"),
   tasksClose: document.getElementById("doc-tasks-close"),
-  tasksComplete: document.getElementById("doc-tasks-complete")
+  tasksComplete: document.getElementById("doc-tasks-complete"),
+  tasksReaderMeta: document.getElementById("doc-tasks-reader-meta"),
+  tasksReaderHint: document.getElementById("doc-tasks-reader-hint"),
+  tasksReaderFill: document.getElementById("doc-tasks-reader-fill")
 };
 
 let documents = [];
@@ -91,6 +94,10 @@ function boot() {
   if (els.llmSave) els.llmSave.addEventListener("click", saveSettings);
   if (els.llmTest) els.llmTest.addEventListener("click", testConnection);
   if (els.searchInput) els.searchInput.addEventListener("input", renderDocuments);
+  if (els.tasksGenerate) els.tasksGenerate.addEventListener("click", generateTasks);
+  if (els.tasksClose) els.tasksClose.addEventListener("click", closeReader);
+  if (els.tasksComplete) els.tasksComplete.addEventListener("click", completeTask);
+  if (els.tasksReaderText) els.tasksReaderText.addEventListener("scroll", updateReaderProgress);
 
   const modal = document.getElementById("fragment-modal");
   const modalGo = document.getElementById("fragment-modal-go");
@@ -103,8 +110,8 @@ function boot() {
   if (modalGo && modal) {
     modalGo.addEventListener("click", function () {
       modal.hidden = true;
-      const nav = document.querySelector('.nav__item[data-view="home"]');
-      if (nav) nav.click();
+      const first = tasks.find(function (task) { return task.status !== "LOCKED"; });
+      if (first) openTask(first.id);
     });
   }
 
@@ -120,6 +127,9 @@ async function loadFor(page) {
     await loadDocuments();
     await loadSkills();
     restoreActiveDoc();
+    if (activeDoc && tasks.length === 0) {
+      await loadTasks(activeDoc.id);
+    }
     const state = readFragments();
     // 以最近一次分析结果为准：玩完游戏回来必须还能看到收集进度
     if (state && Array.isArray(state.fragments) && state.fragments.length) {
@@ -234,7 +244,18 @@ async function analyze() {
     saveFragments(state);
     renderFragments(state);
     updateFragmentStatus(state);
-    scheduleFragmentModal(state.fragments.length);
+
+    // 分析即拆段：一次分析同时产出阅读任务，不再要求手动点「生成任务」
+    let taskCount = 0;
+    try {
+      const taskData = await api("/documents/" + activeDoc.id + "/tasks", { method: "POST" });
+      tasks = taskData.tasks || [];
+      taskCount = tasks.length;
+      renderTasks(taskData);
+    } catch (ignored) {
+      // 分段失败不影响碎片结果
+    }
+    if (taskCount > 0) scheduleFragmentModal(taskCount);
   } catch (error) {
     setAnalyzeState("分析失败", "warn");
     els.analyzeHint.textContent = friendlyError(error);
@@ -779,6 +800,7 @@ function publishDocTask(documentId, list) {
         summary: pending.summary || "",
         chars: pending.chars || 0,
         goal: taskGoal(pending.chars),
+        keywords: Array.isArray(pending.keywords) ? pending.keywords : [],
         eaten: eaten,
         total: items.length,
         completed: completed
@@ -805,16 +827,57 @@ async function loadTasks(documentId) {
     const data = await api("/documents/" + documentId + "/tasks");
     tasks = data.tasks || [];
     renderTasks(data);
+    await syncCollectedTasks(documentId);
   } catch (error) {
     tasks = [];
     els.tasksProgress.textContent = "任务不可用";
-    els.tasksGenerate.hidden = false;
   }
+}
+
+async function syncCollectedTasks(documentId) {
+  const target = tasks.find(function (task) {
+    if (task.status !== "COLLECTING") return false;
+    const keywords = Array.isArray(task.keywords) ? task.keywords : [];
+    const collected = shardCollected(documentId, task.seq);
+    return keywords.length > 0 && collected.length >= keywords.length;
+  });
+  if (!target) return;
+
+  try {
+    const data = await api(
+      "/documents/" + documentId + "/tasks/" + target.id + "/collect",
+      { method: "POST" }
+    );
+    tasks = data.tasks || [];
+    renderTasks(data);
+    els.tasksProgress.textContent = "第 " + target.seq + " 段已收集完成 · 已解锁下一段";
+  } catch (ignored) {
+    // 下次回到文档页再同步
+  }
+}
+
+
+const SHARD_KEY = "mindflow.taskShards";
+
+function readShardState() {
+  try {
+    return JSON.parse(localStorage.getItem(SHARD_KEY) || "null");
+  } catch (ignored) {
+    return null;
+  }
+}
+
+function shardCollected(documentId, seq) {
+  const state = readShardState();
+  if (!state || String(state.documentId || "") !== String(documentId || "")) return [];
+  if (Number(state.seq) !== Number(seq)) return [];
+  return Array.isArray(state.collected) ? state.collected : [];
 }
 
 function renderTasks(data) {
   if (!els.tasksList) return;
   els.tasksList.textContent = "";
+  const documentId = (data && data.documentId) || (activeDoc && activeDoc.id) || "";
   const list = (data && data.tasks) || tasks;
   const total = list.length;
   const completed = list.filter(function (task) { return task.status === "DONE"; }).length;
@@ -846,10 +909,25 @@ function renderTasks(data) {
     body.appendChild(title);
     body.appendChild(summary);
 
+    const keywords = Array.isArray(task.keywords) ? task.keywords : [];
+    if (keywords.length) {
+      const drops = document.createElement("span");
+      drops.className = "doc-task__drops";
+      const collected = shardCollected(documentId, task.seq);
+      keywords.forEach(function (word, index) {
+        const dot = document.createElement("i");
+        dot.className = "doc-task__drop" + (collected.indexOf(index) >= 0 ? " is-on" : "");
+        dot.title = word;
+        drops.appendChild(dot);
+      });
+      body.appendChild(drops);
+    }
+
     const state = document.createElement("span");
     state.className = "doc-task__state";
     state.textContent = task.status === "DONE" ? "已完成"
-      : task.status === "READY" ? "可读" : "未解锁";
+      : task.status === "COLLECTING" ? "待收集"
+        : task.status === "READY" ? "可读" : "未解锁";
 
     item.appendChild(seq);
     item.appendChild(body);
@@ -859,7 +937,8 @@ function renderTasks(data) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "doc-task__btn";
-      btn.textContent = task.status === "DONE" ? "重读" : "开始读";
+      btn.textContent = task.status === "DONE" ? "重读"
+        : task.status === "COLLECTING" ? "再读" : "开始读";
       btn.addEventListener("click", function () {
         openTask(task.id);
       });
@@ -899,18 +978,61 @@ async function openTask(taskId) {
   }
 }
 
+let readingHintTimer = 0;
+
+function resetReaderProgress() {
+  if (els.tasksReaderFill) els.tasksReaderFill.style.width = "0%";
+  if (els.tasksReaderHint) {
+    els.tasksReaderHint.classList.remove("is-visible");
+    els.tasksReaderHint.textContent = "";
+  }
+}
+
+function updateReaderProgress() {
+  const text = els.tasksReaderText;
+  if (!text || !els.tasksReaderFill) return;
+  const total = text.scrollHeight - text.clientHeight;
+  const percent = total <= 0 ? 100 : Math.min(100, Math.round((text.scrollTop / total) * 100));
+  els.tasksReaderFill.style.width = percent + "%";
+}
+
+function startReadingHint() {
+  if (readingHintTimer) window.clearTimeout(readingHintTimer);
+  readingHintTimer = window.setTimeout(function () {
+    if (!els.tasksReaderHint || !els.tasksReader || els.tasksReader.hidden) return;
+    els.tasksReaderHint.textContent = "抬头看一下远处";
+    els.tasksReaderHint.classList.add("is-visible");
+  }, 90000);
+}
+
 function showReader(data) {
   if (!els.tasksReader) return;
+  const content = data.content || "";
+  const chars = content.length;
+  const minutes = Math.max(1, Math.round(chars / 300));
+
   els.tasksReader.hidden = false;
   els.tasksReaderTitle.textContent = (data.seq ? "第 " + data.seq + " 段 · " : "") + (data.title || "");
-  els.tasksReaderText.textContent = data.content || "";
+  els.tasksReaderText.textContent = content;
   els.tasksReaderText.scrollTop = 0;
+
+  const keywords = Array.isArray(data.keywords) ? data.keywords : [];
+  if (els.tasksReaderMeta) {
+    els.tasksReaderMeta.textContent = "约 " + minutes + " 分钟 · " + chars + " 字"
+      + (keywords.length ? " · 关键词：" + keywords.join(" / ") : "");
+  }
+  resetReaderProgress();
+  updateReaderProgress();
+  if (data.status !== "DONE") startReadingHint();
+
   els.tasksComplete.textContent = data.status === "DONE" ? "已完成" : "我读完了";
   els.tasksComplete.disabled = data.status === "DONE";
 }
 
 function closeReader() {
   activeTaskId = null;
+  if (readingHintTimer) window.clearTimeout(readingHintTimer);
+  readingHintTimer = 0;
   if (!els.tasksReader) return;
   els.tasksReader.hidden = true;
   els.tasksReaderText.textContent = "";
@@ -927,8 +1049,10 @@ async function completeTask() {
     tasks = data.tasks || [];
     renderTasks(data);
     closeReader();
-    els.tasksProgress.textContent = "已完成 " + data.completed + " / " + data.total + " · 已解锁一次下潜";
-    goHomeForDive();
+    els.tasksProgress.textContent = "这一段读完了 · 即将下潜放松";
+    window.setTimeout(function () {
+      goHomeForDive();
+    }, 2600);
   } catch (error) {
     els.tasksProgress.textContent = friendlyError(error);
   } finally {

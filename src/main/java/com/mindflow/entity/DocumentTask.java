@@ -30,6 +30,9 @@ public class DocumentTask {
     @Column(name = "summary", length = 400)
     private String summary;
 
+    @Column(name = "keywords", length = 160)
+    private String keywords;
+
     @Column(name = "start_offset", nullable = false)
     private int startOffset;
 
@@ -83,6 +86,14 @@ public class DocumentTask {
 
     public void setSummary(String summary) {
         this.summary = summary;
+    }
+
+    public String getKeywords() {
+        return keywords;
+    }
+
+    public void setKeywords(String keywords) {
+        this.keywords = keywords;
     }
 
     public int getStartOffset() {

@@ -279,6 +279,11 @@
                 <b id="doc-tasks-reader-title"></b>
                 <button class="doc-tasks__close" id="doc-tasks-close" type="button">收起</button>
               </div>
+              <div class="doc-tasks__reader-meta">
+                <span id="doc-tasks-reader-meta">约 2 分钟 · 600 字</span>
+                <span class="doc-tasks__reader-hint" id="doc-tasks-reader-hint"></span>
+              </div>
+              <div class="doc-tasks__reader-track"><i id="doc-tasks-reader-fill"></i></div>
               <p class="doc-tasks__reader-text" id="doc-tasks-reader-text"></p>
               <button class="doc-tasks__btn doc-tasks__btn--primary" id="doc-tasks-complete" type="button">我读完了</button>
             </div>
@@ -291,10 +296,10 @@
       <div class="fragment-modal" id="fragment-modal" hidden>
         <div class="fragment-modal__panel">
           <span class="fragment-modal__eyebrow">分析完成</span>
-          <h3 class="fragment-modal__title">文档已拆成 <b id="fragment-modal-count">0</b> 块知识碎片</h3>
-          <p class="fragment-modal__text">去首页下潜，吃金色任务鱼逐块收集；蓝色归中鱼只是休息。</p>
+          <h3 class="fragment-modal__title">文档已拆成 <b id="fragment-modal-count">0</b> 段阅读任务</h3>
+          <p class="fragment-modal__text">先读第 1 段，点「我读完了」后下潜，把这一段的关键词收齐就能进入下一段。</p>
           <div class="fragment-modal__actions">
-            <button class="fragment-modal__btn fragment-modal__btn--primary" id="fragment-modal-go" type="button">去首页下潜</button>
+            <button class="fragment-modal__btn fragment-modal__btn--primary" id="fragment-modal-go" type="button">开始读第 1 段</button>
             <button class="fragment-modal__btn" id="fragment-modal-close" type="button">先留在文档</button>
           </div>
         </div>

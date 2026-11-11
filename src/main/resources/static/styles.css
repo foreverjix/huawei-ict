@@ -3759,6 +3759,26 @@ body:not([data-page="home"]) .stage {
   color: #8fb9cc;
 }
 
+.doc-task__drops {
+  display: flex;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.doc-task__drop {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(120, 230, 255, 0.16);
+  border: 1px solid rgba(120, 230, 255, 0.34);
+}
+
+.doc-task__drop.is-on {
+  background: linear-gradient(180deg, #8ff2ff, #4dc9ff);
+  border-color: rgba(180, 245, 255, 0.9);
+  box-shadow: 0 0 8px rgba(90, 220, 255, 0.65);
+}
+
 .doc-task__state {
   font-size: 10.5px;
   color: #9fe8c6;
@@ -3814,6 +3834,44 @@ body:not([data-page="home"]) .stage {
   color: #8fc7de;
   font-size: 11px;
   cursor: pointer;
+}
+
+.doc-tasks__reader-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(150, 210, 235, 0.75);
+}
+
+.doc-tasks__reader-hint {
+  color: #a8ecff;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.doc-tasks__reader-hint.is-visible {
+  opacity: 1;
+}
+
+.doc-tasks__reader-track {
+  height: 3px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: rgba(120, 230, 255, 0.12);
+  overflow: hidden;
+}
+
+.doc-tasks__reader-track i {
+  display: block;
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #57d7ff, #8affd8);
+  box-shadow: 0 0 10px rgba(90, 220, 255, 0.55);
+  transition: width 0.18s ease;
 }
 
 .doc-tasks__reader-text {

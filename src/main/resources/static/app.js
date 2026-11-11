@@ -644,6 +644,7 @@
 
     taskEaten: 0,
     completedTasks: 0,
+    keywordCollected: [],
 
     // ---- 颈椎引导训练 ----
     roundStart: 0,
@@ -1024,6 +1025,15 @@
     const isRest = axis === "still" || (axis === "yaw" && plan.dir === 0);
     const type = isDecoy ? "decoy" : isRest ? "rest" : "task";
     const fragment = !isDecoy && type === "task" ? nextPendingFragment() : null;
+    const keywords = !isDecoy && type === "task" && docTask && docTask.status === "active"
+      && Array.isArray(docTask.keywords) ? docTask.keywords : [];
+    let keywordIndex = null;
+    for (let i = 0; i < keywords.length; i++) {
+      if (GAME.keywordCollected.indexOf(i) < 0) {
+        keywordIndex = i;
+        break;
+      }
+    }
     const sizeRatio = isDecoy ? 0.075 : isRest ? 0.088 : 0.075;
     const w = Math.round(clamp(stageBox.w * (sizeRatio + Math.random() * 0.02), 64, 190));
     const h = Math.round(w * 0.735);
@@ -1121,6 +1131,7 @@
       hoverMs: opts && opts.hoverMs ? opts.hoverMs : isDecoy ? 3500 : axis === "still" ? 4600 : GAME.tide.active ? GUIDE.tideHoverMs : GUIDE.hoverMs,
       fragmentIndex: fragment ? fragment.index : null,
       fragmentTitle: fragment ? fragment.title : "",
+      keywordIndex: keywordIndex,
       reach: false,
       faceDir: vx >= 0 ? 1 : -1
     };
@@ -1499,6 +1510,9 @@ updateGuideHud(now);
     // 只有金色任务鱼推进任务进度，蓝色归中鱼只是休息
     if (fish.type === "task") {
       advanceTask(value);
+      if (typeof fish.keywordIndex === "number") {
+        collectKeyword(fish.keywordIndex);
+      }
       if (typeof fish.fragmentIndex === "number") {
         collectFragment(fish.fragmentIndex, fish.fragmentTitle);
         showPraise("收集到碎片", fish.fragmentTitle || ("第 " + (fish.fragmentIndex + 1) + " 块"));
@@ -3234,6 +3248,45 @@ function updateSpawn(now) {
     updateTaskUI();
   }
 
+  function readKeywordProgress(documentId, seq) {
+    try {
+      const raw = localStorage.getItem("mindflow.taskShards");
+      const state = raw ? JSON.parse(raw) : null;
+      if (!state || String(state.documentId || "") !== String(documentId || "")) return [];
+      if (Number(state.seq) !== Number(seq)) return [];
+      return Array.isArray(state.collected) ? state.collected : [];
+    } catch (ignored) {
+      return [];
+    }
+  }
+
+  function saveKeywordProgress() {
+    if (!docTask || docTask.status !== "active") return;
+    try {
+      localStorage.setItem("mindflow.taskShards", JSON.stringify({
+        documentId: docTask.documentId || "",
+        seq: docTask.seq || 0,
+        collected: GAME.keywordCollected
+      }));
+    } catch (ignored) {
+      // 存储不可用时只影响回程显示
+    }
+  }
+
+  function collectKeyword(index) {
+    if (!docTask || docTask.status !== "active") return;
+    if (GAME.keywordCollected.indexOf(index) >= 0) return;
+
+    GAME.keywordCollected.push(index);
+    saveKeywordProgress();
+
+    const keywords = Array.isArray(docTask.keywords) ? docTask.keywords : [];
+    updateTaskUI();
+    if (keywords.length && GAME.keywordCollected.length >= keywords.length) {
+      showPraise("这一段抓到了", keywords.join(" / "), "warm");
+    }
+  }
+
   function completeTask() {
     GAME.taskEaten = currentTask().goal;
     GAME.completedTasks += 1;
@@ -3250,7 +3303,8 @@ function updateSpawn(now) {
         kind: "doc",
         title: "第 " + docTask.seq + " 段 · " + docTask.title,
         detail: docTask.summary || "",
-        goal: docTask.goal
+        goal: docTask.goal,
+        keywords: Array.isArray(docTask.keywords) ? docTask.keywords : []
       };
     }
     if (docTask && docTask.status === "done") {
@@ -3288,8 +3342,12 @@ function updateSpawn(now) {
     }
     if (taskPercentEl) taskPercentEl.textContent = pct + "%";
     if (hudTaskEl) {
+      const kwTotal = task.keywords ? task.keywords.length : 0;
+      const kwDone = Math.min(GAME.keywordCollected.length, kwTotal);
       hudTaskEl.textContent = task.kind === "doc"
-        ? "第 " + docTask.seq + " 段 · " + eaten + "/" + task.goal
+        ? "第 " + docTask.seq + " 段" + (kwTotal
+          ? " · 关键词 " + kwDone + "/" + kwTotal
+          : " · " + eaten + "/" + task.goal)
         : task.kind === "done" ? "自由训练 · 文档已读完" : "自由训练 · 未绑定文档";
     }
     updateGameProgress(task, eaten, pct);
@@ -3352,6 +3410,9 @@ function updateSpawn(now) {
 
     if (!sameTask) {
       GAME.taskEaten = data.status === "active" ? Math.max(0, Number(data.eaten) || 0) : 0;
+      GAME.keywordCollected = data.status === "active"
+        ? readKeywordProgress(data.documentId, data.seq)
+        : [];
     }
     updateTaskUI();
   }

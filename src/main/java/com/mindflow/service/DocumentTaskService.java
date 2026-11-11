@@ -19,8 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -30,6 +33,13 @@ public class DocumentTaskService {
 
     private static final int CHARS_PER_TASK = 600;
     private static final int MAX_TASKS = 6;
+
+    private static final Set<String> STOP_WORDS = Set.of(
+            "这个", "一个", "我们", "可以", "因为", "所以", "但是", "如果", "以及", "通过",
+            "进行", "使用", "其中", "这些", "那些", "已经", "没有", "就是", "不是", "一种",
+            "本文", "本章", "这种", "那么", "然后", "而且", "并且", "或者", "由于", "对于",
+            "根据", "表示", "认为", "提出", "需要", "能够", "具有", "之间", "以后", "之后"
+    );
 
     private static final String SYSTEM_PROMPT = String.join("\n",
             "你是阅读任务拆解助手。输入是一份文档按顺序切好的若干段落，每段给出开头片段。",
@@ -86,6 +96,7 @@ public class DocumentTaskService {
             task.setSeqNo(index + 1);
             task.setTitle(titles.get(index));
             task.setSummary(summaries.get(index));
+            task.setKeywords(String.join(",", extractKeywords(text, range[0], range[1])));
             task.setStartOffset(range[0]);
             task.setEndOffset(range[1]);
             task.setStatus(index == 0 ? "READY" : "LOCKED");
@@ -105,9 +116,26 @@ public class DocumentTaskService {
                 .findFirst()
                 .orElseThrow(() -> new NoSuchElementException("任务不存在: " + taskId));
 
-        if (!"DONE".equals(target.getStatus())) {
-            target.setStatus("DONE");
+        // 读完只是进入「待收集」，要到下潜里把这一段的关键词收齐才算完成
+        if ("READY".equals(target.getStatus())) {
+            target.setStatus("COLLECTING");
             target.setCompletedAt(Instant.now());
+            taskRepository.save(target);
+        }
+        return toList(documentId, taskRepository.findByDocumentIdOrderBySeqNoAsc(documentId), "cached");
+    }
+
+    @Transactional
+    public DocumentTaskListDto collect(String documentId, String taskId) {
+        requireDocument(documentId);
+        List<DocumentTask> tasks = taskRepository.findByDocumentIdOrderBySeqNoAsc(documentId);
+        DocumentTask target = tasks.stream()
+                .filter(task -> task.getId().equals(taskId))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("任务不存在: " + taskId));
+
+        if ("COLLECTING".equals(target.getStatus())) {
+            target.setStatus("DONE");
             taskRepository.save(target);
             unlockNext(tasks, target.getSeqNo());
         }
@@ -130,7 +158,8 @@ public class DocumentTaskService {
                 task.getTitle(),
                 task.getSummary(),
                 task.getStatus(),
-                text.substring(start, end));
+                text.substring(start, end),
+                parseKeywords(task.getKeywords()));
     }
 
     private void unlockNext(List<DocumentTask> tasks, int currentSeq) {
@@ -219,6 +248,77 @@ public class DocumentTaskService {
         return text.length() > maxLength ? text.substring(0, maxLength) : text;
     }
 
+    private List<String> parseKeywords(String value) {
+        if (value == null || value.isBlank()) {
+            return List.of();
+        }
+        List<String> words = new ArrayList<>();
+        for (String part : value.split(",")) {
+            String word = part.trim();
+            if (!word.isEmpty()) {
+                words.add(word);
+            }
+        }
+        return words;
+    }
+
+    private List<String> extractKeywords(String text, int start, int end) {
+        int limit = Math.min(end, start + 600);
+        if (start >= text.length() || limit <= start) {
+            return List.of();
+        }
+
+        String segment = text.substring(start, limit).replaceAll("[\\s\\p{Punct}]+", " ");
+        Map<String, Integer> freq = new LinkedHashMap<>();
+        for (int length = 2; length <= 4; length++) {
+            for (int index = 0; index + length <= segment.length(); index++) {
+                String word = segment.substring(index, index + length);
+                if (!word.matches("[\\u4e00-\\u9fa5]{" + length + "}")) {
+                    continue;
+                }
+                if (STOP_WORDS.contains(word)) {
+                    continue;
+                }
+                freq.merge(word, 1, Integer::sum);
+            }
+        }
+
+        List<String> candidates = new ArrayList<>();
+        freq.forEach((word, count) -> {
+            if (count >= 2) {
+                candidates.add(word);
+            }
+        });
+        candidates.sort((left, right) -> {
+            int diff = freq.get(right) - freq.get(left);
+            return diff != 0 ? diff : left.length() - right.length();
+        });
+
+        List<String> picked = new ArrayList<>();
+        for (String candidate : candidates) {
+            boolean covered = picked.stream().anyMatch(existing -> existing.contains(candidate));
+            if (covered) {
+                continue;
+            }
+            picked.add(candidate);
+            if (picked.size() >= 3) {
+                break;
+            }
+        }
+
+        if (picked.size() < 3) {
+            String head = segment.trim();
+            if (!head.isEmpty()) {
+                String fallback = head.length() > 12 ? head.substring(0, 12).trim() : head;
+                if (!fallback.isEmpty() && picked.stream().noneMatch(existing -> existing.contains(fallback))) {
+                    picked.add(fallback);
+                }
+            }
+        }
+
+        return picked.size() > 3 ? new ArrayList<>(picked.subList(0, 3)) : picked;
+    }
+
     private List<int[]> splitRanges(String text) {
         int length = text.length();
         int count = Math.max(1, Math.min(MAX_TASKS, (int) Math.ceil((double) length / CHARS_PER_TASK)));
@@ -278,7 +378,8 @@ public class DocumentTaskService {
                         task.getSummary(),
                         Math.max(0, task.getEndOffset() - task.getStartOffset()),
                         task.getStatus(),
-                        task.getCompletedAt()))
+                        task.getCompletedAt(),
+                        parseKeywords(task.getKeywords())))
                 .toList();
         int completed = (int) tasks.stream().filter(task -> "DONE".equals(task.getStatus())).count();
         return new DocumentTaskListDto(documentId, items.size(), completed, source, items);

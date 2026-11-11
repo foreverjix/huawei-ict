@@ -1,6 +1,7 @@
 package com.mindflow.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public record DocumentTaskItem(
         String id,
@@ -9,6 +10,7 @@ public record DocumentTaskItem(
         String summary,
         int chars,
         String status,
-        Instant completedAt
+        Instant completedAt,
+        List<String> keywords
 ) {
 }
